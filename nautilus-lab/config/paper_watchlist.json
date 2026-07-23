@@ -1,0 +1,15 @@
+{
+ "pairs": [
+  "BTC_USDT",
+  "ETH_USDT",
+  "SOL_USDT",
+  "PUMP_USDT",
+  "ASTER_USDT",
+  "WLFI_USDT",
+  "XPL_USDT",
+  "AERO_USDT",
+  "EIGEN_USDT",
+  "ZAMA_USDT"
+ ],
+ "note": "Gate.io спот-пары под наблюдением S11. Сервис действует только на свежих листингах."
+}

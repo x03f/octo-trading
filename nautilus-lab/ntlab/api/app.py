@@ -120,9 +120,22 @@ def _forward_pnl():
         return {"available": False, "error": str(e)[:80]}
 
 
+@app.get("/api/paper")
+def paper():
+    """Статус непрерывного paper-сервиса S11 (симуляция на живых данных Gate.io)."""
+    st = _load("paper_s11_status.json", None)
+    try:
+        active = subprocess.run(["systemctl", "is-active", "ntlab-paper"],
+                                capture_output=True, text=True, timeout=5).stdout.strip()
+    except Exception:
+        active = "unknown"
+    return {"service": active, "simulation": True, "status": st or {"available": False},
+            "note": "Реальные ордера невозможны без явного LIVE-переключателя и ключей."}
+
+
 @app.get("/api/portfolio")
 def portfolio():
-    return {"forward": _forward_pnl(),
+    return {"forward": _forward_pnl(), "paper_s11": _load("paper_s11_status.json", None),
             "note": "Live-портфели появятся после ввода ключей Gate.io и запуска live-preset."}
 
 

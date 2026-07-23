@@ -22,6 +22,11 @@ case "$cmd" in
   backtest)   cd /opt/octobot/nautilus-venv && $VENV/python multi_backtest.py "${1:-majors}";;
   adaptive-test) $VENV/python -m ntlab.tests.test_adaptive 2>/dev/null || $VENV/python "$LAB/tests/test_adaptive.py";;
   gateio-ping) curl -s -m 8 http://127.0.0.1:5020/api/gateio/ping | $VENV/python -m json.tool;;
+  paper-status) curl -s -m 8 http://127.0.0.1:5020/api/paper | $VENV/python -m json.tool;;
+  paper-up)   systemctl start ntlab-paper; echo "ntlab-paper запущен (симуляция, без боевых ордеров)";;
+  paper-down) systemctl stop ntlab-paper; echo "ntlab-paper остановлен";;
+  paper-logs) tail -n "${1:-30}" "$LAB/var/paper_s11.log" 2>/dev/null || echo "лог пуст";;
+  compare-s11) cd /opt/octobot/strategy-lab && /opt/octobot/bot/venv/bin/python nautilus-lab/scripts/compare_s11.py;;
   test)    cd "$LAB" && $VENV/python -m pytest tests/ -q 2>/dev/null || echo "pytest не установлен — запусти tests/*.py напрямую";;
   help|*)
     cat <<EOF

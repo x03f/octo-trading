@@ -149,14 +149,20 @@ async function renderBacktests(v){
 
 async function renderPortfolio(v){
   const d=await get("/api/portfolio")||{},f=d.forward||{};
+  const pp=await get("/api/paper")||{},ps=pp.status||{};
   v.innerHTML=`<div class="grid g3">
-    ${tile(f.available?("$"+(f.total||0).toLocaleString()):"—","Стоимость (paper)")}
-    ${tile(pct(f.pnl_pct),"P&L",cls(f.pnl_pct))}
-    ${tile(f.trades??"—","Сделок")}
+    ${tile("$"+((ps.equity)||0).toLocaleString(),"Nautilus paper S11")}
+    ${tile(pct(ps.pnl_pct),"S11 paper P&L",cls(ps.pnl_pct))}
+    ${tile(ps.ticks??"—","Тиков S11")}
   </div>
-  <div class="card" style="margin-top:14px"><h2>Форвард-портфель</h2>
-    <p class="note">Источник: ${f.source||"—"}. Снимков: ${f.snapshots||0}. Обновлён: ${f.as_of||"—"}.</p>
-    <p class="note">${d.note||""}</p></div>`;
+  <div class="card" style="margin-top:14px"><h2>Nautilus paper S11 (симуляция на живых данных Gate.io)</h2>
+    <div style="margin-bottom:8px"><span class="dot ${pp.service=='active'?'on':'off'}"></span>сервис ntlab-paper: <b>${pp.service||"—"}</b>
+      <span class="tag paper" style="margin-left:8px">SIMULATION</span></div>
+    <p class="note">Watchlist: ${ps.watchlist||0} пар · открытых позиций: ${Object.keys(ps.open_positions||{}).length} · исполнений: ${ps.fills||0} · просадка: ${pct(ps.max_drawdown_pct)}.</p>
+    <p class="note">S11 действует только на СВЕЖИХ листингах; устоявшиеся монеты пропускаются. ${pp.note||""}</p></div>
+  <div class="card" style="margin-top:14px"><h2>Форвард-контур OctoBot (контрольный, работает параллельно)</h2>
+    <p class="note">Стоимость $${(f.total||0).toLocaleString()} · P&L ${pct(f.pnl_pct)} · снимков ${f.snapshots||0} · ${f.as_of||"—"}.
+    Остаётся контролем до накопления Nautilus-paper периода и сравнения результатов.</p></div>`;
 }
 
 async function renderAdaptive(v){
