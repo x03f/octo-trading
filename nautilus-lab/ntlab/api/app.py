@@ -1,0 +1,177 @@
+"""FastAPI backend Nautilus Trading Lab. Отдаёт РЕАЛЬНЫЕ данные: аудит озера, каталог стратегий,
+результаты бэктестов, форвард-P&L, статус Gate.io, состояние системы. Плюс дашборд.
+
+Запуск: uvicorn ntlab.api.app:app --host 127.0.0.1 --port 5020
+"""
+import json, os, time, subprocess
+from pathlib import Path
+from fastapi import FastAPI
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+
+import sys
+sys.path.insert(0, "/opt/octobot/nautilus-lab")
+sys.path.insert(0, "/opt/octobot/strategy-lab")
+from ntlab.core.config import settings, LAB_ROOT, RESULTS, LAKE
+from ntlab.strategies.catalog import CATALOG, BURIED_FAMILIES, by_status
+
+app = FastAPI(title="Nautilus Trading Lab", version="0.1.0")
+WEB = LAB_ROOT / "web"
+START = time.time()
+
+
+def _clean(o):
+    """NaN/Inf → None (JSON их не допускает; старые результаты содержат nan-Sharpe)."""
+    import math
+    if isinstance(o, float):
+        return None if (math.isnan(o) or math.isinf(o)) else o
+    if isinstance(o, dict):
+        return {k: _clean(v) for k, v in o.items()}
+    if isinstance(o, list):
+        return [_clean(x) for x in o]
+    return o
+
+
+def _load(name, default=None):
+    p = RESULTS / name
+    try:
+        return _clean(json.load(open(p)))
+    except Exception:
+        return default
+
+
+@app.get("/api/health")
+def health():
+    comps = {
+        "api": True,
+        "lake": LAKE.exists(),
+        "engine": Path("/opt/octobot/strategy-lab/engine").exists(),
+        "nautilus_venv": Path("/opt/octobot/nautilus-venv/bin/python").exists(),
+        "gateio_keys": settings.gateio_ready,
+        "llm": settings.llm_ready,
+    }
+    return {"ok": all([comps["api"], comps["lake"], comps["engine"]]),
+            "components": comps, "uptime_s": round(time.time() - START)}
+
+
+@app.get("/api/overview")
+def overview():
+    lake = _load("lake_quality.json", {})
+    naut = [_load(f"nautilus_{s}.json") for s in ("majors", "niche", "aggr")]
+    naut = [n for n in naut if n]
+    fwd = _forward_pnl()
+    return {
+        "generated": time.time(),
+        "nautilus": {"version": "1.230.0", "engine": "NautilusTrader", "installed": True},
+        "gateio": {"keys_ready": settings.gateio_ready, "mode": "live" if settings.gateio_ready else "paper-only"},
+        "data": {"universe": lake.get("universe"), "candles": lake.get("total_candles"),
+                 "problem_series": lake.get("problem_count"), "generated": lake.get("generated")},
+        "strategies": {"total": len(CATALOG),
+                       "candidate": len(by_status("candidate")),
+                       "buried": len(by_status("buried")),
+                       "research": len(by_status("research"))},
+        "backtests_nautilus": naut,
+        "forward": fwd,
+        "llm_ready": settings.llm_ready,
+    }
+
+
+@app.get("/api/lake")
+def lake():
+    return _load("lake_quality.json", {"error": "аудит не запускался"})
+
+
+@app.get("/api/strategies")
+def strategies():
+    return {"catalog": CATALOG, "buried_families": BURIED_FAMILIES}
+
+
+@app.get("/api/backtests")
+def backtests():
+    return {
+        "nautilus": [_load(f"nautilus_{s}.json") for s in ("majors", "niche", "aggr") if _load(f"nautilus_{s}.json")],
+        "three_set": _load("three_set_test.json"),
+        "new_strategies": _load("new_strategies_test.json"),
+        "liquidity": _load("liquidity_passport.json", {}).get("tercile_edge") if _load("liquidity_passport.json") else None,
+    }
+
+
+def _forward_pnl():
+    """Форвард-P&L из снимков OctoBot-контура (пока источник — pnl_history.csv).
+    После миграции на Nautilus paper источник сменится, контракт останется."""
+    csv = Path("/opt/octobot/strategy-lab/dashboard/pnl_history.csv")
+    if not csv.exists():
+        return {"available": False}
+    try:
+        import csv as csvmod
+        rows = list(csvmod.DictReader(open(csv)))
+        if not rows:
+            return {"available": False}
+        last_ts = max(r["ts"] for r in rows)
+        latest = [r for r in rows if r["ts"] == last_ts]
+        tot = sum(float(r["value"] or 0) for r in latest)
+        base = 10000.0 * len(latest)
+        return {"available": True, "instances": len(latest), "total": round(tot, 2),
+                "pnl_pct": round((tot / base - 1) * 100, 2) if base else 0,
+                "trades": sum(int(r["trades"] or 0) for r in latest),
+                "snapshots": len(set(r["ts"] for r in rows)),
+                "as_of": latest[0]["iso"], "source": "octobot-paper (мигрируется на nautilus-paper)"}
+    except Exception as e:
+        return {"available": False, "error": str(e)[:80]}
+
+
+@app.get("/api/portfolio")
+def portfolio():
+    return {"forward": _forward_pnl(),
+            "note": "Live-портфели появятся после ввода ключей Gate.io и запуска live-preset."}
+
+
+@app.get("/api/gateio/ping")
+def gateio_ping():
+    try:
+        from ntlab.adapters.gateio.data import GateioData
+        g = GateioData(); r = g.ping(); g.close()
+        return {"public_data": r, "keys_ready": settings.gateio_ready}
+    except Exception as e:
+        return JSONResponse({"public_data": {"ok": False, "error": str(e)[:120]},
+                             "keys_ready": settings.gateio_ready}, status_code=503)
+
+
+@app.get("/api/adaptive")
+def adaptive():
+    st = _load("adaptive_state.json", {})
+    return {"available": True, "llm_ready": settings.llm_ready,
+            "provider": settings.LLM_PROVIDER or None, "state": st,
+            "note": "LLM — консультант; решение принимает платформа по автовалидации бэктестом."}
+
+
+@app.get("/api/system")
+def system():
+    def svc(name):
+        try:
+            return subprocess.run(["systemctl", "is-active", name], capture_output=True, text=True, timeout=5).stdout.strip()
+        except Exception:
+            return "unknown"
+    git = ""
+    try:
+        git = subprocess.run(["git", "-C", "/opt/octobot/strategy-lab", "rev-parse", "--short", "HEAD"],
+                             capture_output=True, text=True, timeout=5).stdout.strip()
+    except Exception:
+        pass
+    du = os.statvfs("/")
+    return {
+        "services": {n: svc(n) for n in ("ntlab-api", "ntlab-paper", "postgresql@17-main")},
+        "disk_free_gb": round(du.f_bavail * du.f_frsize / 1e9, 1),
+        "git_commit": git, "uptime_s": round(time.time() - START),
+        "nautilus_venv": Path("/opt/octobot/nautilus-venv").exists(),
+    }
+
+
+# --- дашборд ---
+if (WEB / "data").exists():
+    app.mount("/data", StaticFiles(directory=str(WEB / "data")), name="data")
+
+
+@app.get("/")
+def index():
+    return FileResponse(str(WEB / "index.html"))

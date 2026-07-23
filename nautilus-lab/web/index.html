@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nautilus Trading Lab</title>
+<style>
+:root{--bg:#0b0e14;--panel:#131722;--panel2:#1a1f2e;--line:#232838;--ink:#e6e9ef;--ink2:#8b93a7;
+--good:#26a69a;--bad:#ef5350;--warn:#f0a020;--accent:#4c8dff;--chip:#1e2433}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+header{display:flex;align-items:center;gap:14px;padding:14px 22px;border-bottom:1px solid var(--line);background:var(--panel)}
+header h1{font-size:16px;margin:0;font-weight:650;letter-spacing:.2px}
+header .badge{font-size:11px;padding:3px 8px;border-radius:5px;background:var(--chip);color:var(--ink2)}
+nav{display:flex;gap:2px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--panel);overflow-x:auto}
+nav button{background:none;border:none;color:var(--ink2);padding:11px 14px;cursor:pointer;font-size:13px;border-bottom:2px solid transparent;white-space:nowrap}
+nav button.on{color:var(--ink);border-bottom-color:var(--accent)}
+main{padding:20px 22px;max-width:1400px}
+.grid{display:grid;gap:14px}
+.g4{grid-template-columns:repeat(4,1fr)}.g3{grid-template-columns:repeat(3,1fr)}.g2{grid-template-columns:repeat(2,1fr)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+.card h2{font-size:13px;margin:0 0 12px;color:var(--ink2);font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.stat .v{font-size:26px;font-weight:680;letter-spacing:-.5px}
+.stat .l{font-size:12px;color:var(--ink2);margin-top:2px}
+.pos{color:var(--good)}.neg{color:var(--bad)}.mut{color:var(--ink2)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;color:var(--ink2);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--line);font-size:11px;text-transform:uppercase}
+td{padding:9px 10px;border-bottom:1px solid var(--panel2)}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.tag{font-size:11px;padding:2px 7px;border-radius:4px;font-weight:600}
+.tag.candidate{background:rgba(38,166,154,.15);color:var(--good)}
+.tag.buried{background:rgba(239,83,80,.12);color:var(--bad)}
+.tag.research{background:rgba(76,141,255,.15);color:var(--accent)}
+.tag.paper{background:rgba(240,160,32,.15);color:var(--warn)}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}
+.dot.on{background:var(--good)}.dot.off{background:var(--bad)}.dot.na{background:var(--ink2)}
+.muted{color:var(--ink2);font-size:12px}
+.hidden{display:none}
+.pill{display:inline-block;font-size:11px;padding:2px 8px;border-radius:10px;background:var(--chip);color:var(--ink2);margin-right:6px}
+.note{font-size:12px;color:var(--ink2);line-height:1.5;margin:6px 0 0}
+.bar{height:6px;background:var(--panel2);border-radius:3px;overflow:hidden;margin-top:6px}
+.bar>i{display:block;height:100%;background:var(--good)}
+</style>
+</head>
+<body>
+<header>
+  <h1>⚓ Nautilus Trading Lab</h1>
+  <span class="badge" id="hdr-engine">NautilusTrader —</span>
+  <span class="badge" id="hdr-mode">режим —</span>
+  <span class="badge" id="hdr-uptime" style="margin-left:auto"></span>
+</header>
+<nav id="nav"></nav>
+<main id="view"></main>
+
+<script>
+const TABS=[["overview","Overview"],["strategies","Strategies"],["backtests","Backtests"],
+  ["portfolio","Portfolio"],["adaptive","Adaptive AI"],["datalake","Data Lake"],["system","System"]];
+let CUR="overview",DATA={};
+const $=s=>document.querySelector(s);
+const pct=x=>x==null?"—":(x>=0?"+":"")+x.toFixed(2)+"%";
+const cls=x=>x==null?"mut":x>=0?"pos":"neg";
+const sh=x=>x==null?"—":(x>=0?"+":"")+x.toFixed(2);
+
+async function get(p){try{const r=await fetch(p,{cache:"no-store"});return await r.json()}catch(e){return null}}
+
+function nav(){$("#nav").innerHTML=TABS.map(([k,t])=>`<button class="${k==CUR?'on':''}" onclick="go('${k}')">${t}</button>`).join("")}
+function go(k){CUR=k;nav();render()}
+
+async function boot(){
+  nav();
+  DATA.overview=await get("/api/overview");
+  const h=DATA.overview||{};
+  $("#hdr-engine").textContent="NautilusTrader "+(h.nautilus?.version||"—");
+  $("#hdr-mode").textContent=h.gateio?.keys_ready?"LIVE готов":"paper-only (нет ключей)";
+  render();setInterval(async()=>{if(CUR=="overview"||CUR=="system"){DATA.overview=await get("/api/overview");if(CUR=="overview")render()}},15000);
+}
+
+async function render(){
+  const v=$("#view");
+  if(CUR=="overview")return renderOverview(v);
+  if(CUR=="strategies")return renderStrategies(v);
+  if(CUR=="backtests")return renderBacktests(v);
+  if(CUR=="portfolio")return renderPortfolio(v);
+  if(CUR=="adaptive")return renderAdaptive(v);
+  if(CUR=="datalake")return renderLake(v);
+  if(CUR=="system")return renderSystem(v);
+}
+
+function tile(v,l,c){return `<div class="card stat"><div class="v ${c||''}">${v}</div><div class="l">${l}</div></div>`}
+
+async function renderOverview(v){
+  const d=DATA.overview||await get("/api/overview")||{};
+  const f=d.forward||{},s=d.strategies||{},data=d.data||{};
+  v.innerHTML=`
+  <div class="grid g4">
+    ${tile(f.available?("$"+(f.total||0).toLocaleString()):"—","Форвард-портфель (paper)")}
+    ${tile(pct(f.pnl_pct),"Форвард P&L",cls(f.pnl_pct))}
+    ${tile((data.candles/1e6||0).toFixed(1)+"M","Свечей в озере")}
+    ${tile(s.candidate||0,"Стратегий-кандидатов","pos")}
+  </div>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card"><h2>Компоненты</h2><div id="comps"></div></div>
+    <div class="card"><h2>Nautilus бэктест по наборам (S4 Donchian, 2 года)</h2>
+      <table><thead><tr><th>Набор</th><th class="num">Инстр.</th><th class="num">P&L</th><th class="num">Сделок</th></tr></thead>
+      <tbody>${(d.backtests_nautilus||[]).map(x=>`<tr><td>${x.set}</td><td class="num">${x.n_instruments}</td><td class="num ${cls(x.pnl_pct)}">${pct(x.pnl_pct)}</td><td class="num">${x.fills}</td></tr>`).join("")}</tbody></table>
+      <p class="note">Все в минусе — у пробойных стратегий устойчивого края нет (честный трёхчастный тест).</p>
+    </div>
+  </div>
+  <div class="card" style="margin-top:14px"><h2>Данные</h2>
+    <span class="pill">${data.universe||"—"} монет</span>
+    <span class="pill">${data.problem_series??"—"} проблемных рядов</span>
+    <span class="pill">аудит ${data.generated?new Date(data.generated).toLocaleDateString("ru-RU"):"—"}</span>
+    <p class="note">Форвард-контур копит непредвзятые данные (${f.snapshots||0} снимков). Реальные деньги — ни на что до форвард-подтверждения.</p>
+  </div>`;
+  const h=await get("/api/health");
+  if(h)$("#comps").innerHTML=Object.entries(h.components).map(([k,ok])=>
+    `<div style="padding:4px 0"><span class="dot ${ok?'on':(k=='gateio_keys'||k=='llm'?'na':'off')}"></span>${k} <span class="muted">${ok?"ok":(k=='gateio_keys'?"нет ключей":k=='llm'?"не настроен":"нет")}</span></div>`).join("");
+}
+
+async function renderStrategies(v){
+  const d=await get("/api/strategies")||{};
+  v.innerHTML=`<div class="card"><h2>Каталог стратегий (статусы из честного трёхчастного теста)</h2>
+    <table><thead><tr><th>ID</th><th>Имя</th><th>Класс</th><th class="num">TEST Sharpe</th><th>Статус</th><th>Рынок</th></tr></thead>
+    <tbody>${(d.catalog||[]).map(s=>`<tr>
+      <td><b>${s.id}</b></td><td>${s.name}</td><td class="muted">${s.class}</td>
+      <td class="num ${cls(s.test_sharpe)}">${sh(s.test_sharpe)}</td>
+      <td><span class="tag ${s.status}">${s.status}</span></td><td class="muted">${s.market}</td></tr>
+      <tr><td></td><td colspan="5" class="note">${s.hypothesis}<br><b>Итог:</b> ${s.note}</td></tr>`).join("")}</tbody></table></div>
+    <div class="card" style="margin-top:14px"><h2>Похороненные семейства (для честной карты)</h2>
+      ${(d.buried_families||[]).map(x=>`<div class="note">🔴 ${x}</div>`).join("")}</div>`;
+}
+
+async function renderBacktests(v){
+  const d=await get("/api/backtests")||{};
+  const ts=d.three_set;
+  let rows="";
+  if(ts&&ts.rows)rows=ts.rows.map(r=>`<tr><td>${r.strategy}</td>
+    <td class="num ${cls(r.train?.sharpe)}">${sh(r.train?.sharpe)}</td>
+    <td class="num ${cls(r.valid?.sharpe)}">${sh(r.valid?.sharpe)}</td>
+    <td class="num ${cls(r.test?.sharpe)}">${sh(r.test?.sharpe)}</td></tr>`).join("");
+  v.innerHTML=`
+  <div class="card"><h2>Чистый трёхчастный тест (TEST не участвует в отборе)</h2>
+    <table><thead><tr><th>Стратегия</th><th class="num">TRAIN Sh</th><th class="num">VALID Sh</th><th class="num">TEST Sh</th></tr></thead>
+    <tbody>${rows||'<tr><td colspan=4 class=muted>нет данных</td></tr>'}</tbody></table>
+    <p class="note">Победитель по VALID (S5) на TEST даёт -1.67 — доказанного края у пробойных нет. Победитель отбирается по VALID, TEST читается один раз.</p></div>
+  <div class="card" style="margin-top:14px"><h2>Nautilus (та же логика, много инструментов в 1 процессе)</h2>
+    <table><thead><tr><th>Набор</th><th class="num">Инстр.</th><th class="num">P&L</th><th class="num">Сделок</th><th class="num">Время</th></tr></thead>
+    <tbody>${(d.nautilus||[]).map(x=>`<tr><td>${x.set}</td><td class="num">${x.n_instruments}</td><td class="num ${cls(x.pnl_pct)}">${pct(x.pnl_pct)}</td><td class="num">${x.fills}</td><td class="num">${x.elapsed_s}s</td></tr>`).join("")}</tbody></table></div>`;
+}
+
+async function renderPortfolio(v){
+  const d=await get("/api/portfolio")||{},f=d.forward||{};
+  v.innerHTML=`<div class="grid g3">
+    ${tile(f.available?("$"+(f.total||0).toLocaleString()):"—","Стоимость (paper)")}
+    ${tile(pct(f.pnl_pct),"P&L",cls(f.pnl_pct))}
+    ${tile(f.trades??"—","Сделок")}
+  </div>
+  <div class="card" style="margin-top:14px"><h2>Форвард-портфель</h2>
+    <p class="note">Источник: ${f.source||"—"}. Снимков: ${f.snapshots||0}. Обновлён: ${f.as_of||"—"}.</p>
+    <p class="note">${d.note||""}</p></div>`;
+}
+
+async function renderAdaptive(v){
+  const d=await get("/api/adaptive")||{};
+  v.innerHTML=`<div class="card"><h2>Adaptive AI Strategy</h2>
+    <div style="margin-bottom:10px"><span class="dot ${d.llm_ready?'on':'na'}"></span>
+    LLM-провайдер: <b>${d.provider||"не настроен"}</b> ${d.llm_ready?"":"(нет ключа — работает в backtest/shadow без применения)"}</div>
+    <p class="note">${d.note||""}</p>
+    <p class="note">Цикл: наблюдение → диагностика → рекомендация LLM → автовалидация бэктестом → выбор конфигурации → shadow/paper → ограниченный live. LLM — консультант, решение принимает платформа по воспроизводимым тестам.</p>
+    <p class="note">Оценка пользы AI проводится сравнением 5 вариантов (статик / классическая адаптация / LLM / мульти-LLM / LLM-без-применения). Результат не выдаётся за доказанное улучшение до подтверждения.</p></div>`;
+}
+
+async function renderLake(v){
+  const d=await get("/api/lake")||{};
+  const tf=d.by_tf||{};
+  v.innerHTML=`<div class="grid g4">
+    ${tile((d.total_candles/1e6||0).toFixed(1)+"M","Свечей")}
+    ${tile(d.universe||"—","Монет")}
+    ${tile(d.funding_coins||"—","Монет с funding")}
+    ${tile(d.problem_count??"—","Проблемных рядов",d.problem_count?"neg":"pos")}
+  </div>
+  <div class="card" style="margin-top:14px"><h2>Покрытие по таймфреймам</h2>
+    <table><thead><tr><th>ТФ</th><th class="num">Рядов</th><th class="num">Чистых</th><th class="num">С проблемами</th><th class="num">Свечей</th></tr></thead>
+    <tbody>${Object.entries(tf).map(([k,x])=>`<tr><td>${k}</td><td class="num">${x.series}</td><td class="num pos">${x.clean}</td><td class="num ${x.dirty?'neg':'mut'}">${x.dirty}</td><td class="num">${(x.candles/1e6).toFixed(1)}M</td></tr>`).join("")}</tbody></table></div>
+  <div class="card" style="margin-top:14px"><h2>Известные искажения (честно)</h2>
+    ${Object.entries(d.known_biases||{}).map(([k,x])=>`<div class="note"><b>${k}:</b> ${x}</div>`).join("")}</div>`;
+}
+
+async function renderSystem(v){
+  const d=await get("/api/system")||{},h=await get("/api/health")||{};
+  v.innerHTML=`<div class="grid g3">
+    ${tile((d.disk_free_gb||"—")+" GB","Диск свободно")}
+    ${tile(Math.round((h.uptime_s||0)/60)+" мин","Uptime API")}
+    ${tile(d.git_commit||"—","Git commit")}
+  </div>
+  <div class="card" style="margin-top:14px"><h2>Сервисы</h2>
+    ${Object.entries(d.services||{}).map(([k,s])=>`<div style="padding:4px 0"><span class="dot ${s=='active'?'on':'off'}"></span>${k} <span class="muted">${s}</span></div>`).join("")}
+    <p class="note">Развёртывание: нативно (systemd + venv), без Docker. См. ADR-001.</p></div>`;
+}
+$("#hdr-uptime").textContent="";
+boot();
+</script>
+</body>
+</html>

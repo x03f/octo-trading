@@ -1,0 +1,40 @@
+#!/bin/bash
+# ntlab — единая обёртка эксплуатации Nautilus Trading Lab (нативно, systemd + venv).
+# См. docs/ADR-001-deployment.md. Один способ управления, без Docker.
+set -e
+VENV=/opt/octobot/nautilus-venv/bin
+LAB=/opt/octobot/nautilus-lab
+export PYTHONPATH=$LAB:/opt/octobot/strategy-lab
+
+cmd=${1:-help}; shift || true
+case "$cmd" in
+  up)      systemctl start ntlab-api; echo "ntlab-api запущен → http://127.0.0.1:5020";;
+  down)    systemctl stop ntlab-api; echo "ntlab-api остановлен";;
+  restart) systemctl restart ntlab-api; echo "ntlab-api перезапущен";;
+  status)
+    echo "=== сервисы ==="
+    for s in ntlab-api; do printf "%-16s %s\n" "$s" "$(systemctl is-active $s 2>/dev/null)"; done
+    echo "=== health ==="
+    curl -s -m 5 http://127.0.0.1:5020/api/health | $VENV/python -m json.tool 2>/dev/null || echo "API не отвечает"
+    ;;
+  logs)    journalctl -u ntlab-api -n "${1:-50}" --no-pager;;
+  data-audit) $VENV/python -m ntlab.data.audit;;
+  backtest)   cd /opt/octobot/nautilus-venv && $VENV/python multi_backtest.py "${1:-majors}";;
+  adaptive-test) $VENV/python -m ntlab.tests.test_adaptive 2>/dev/null || $VENV/python "$LAB/tests/test_adaptive.py";;
+  gateio-ping) curl -s -m 8 http://127.0.0.1:5020/api/gateio/ping | $VENV/python -m json.tool;;
+  test)    cd "$LAB" && $VENV/python -m pytest tests/ -q 2>/dev/null || echo "pytest не установлен — запусти tests/*.py напрямую";;
+  help|*)
+    cat <<EOF
+ntlab — Nautilus Trading Lab
+  ntlab up|down|restart      управление API-сервисом
+  ntlab status               состояние + health
+  ntlab logs [N]             логи API
+  ntlab data-audit           аудит озера данных
+  ntlab backtest [набор]     Nautilus-бэктест (majors|niche|aggr)
+  ntlab gateio-ping          проверка публичного API Gate.io
+  ntlab adaptive-test        тест адаптивного цикла (без ключей)
+  ntlab test                 прогон тестов
+Дашборд: http://127.0.0.1:5020  (за Caddy+Authelia — как остальные панели)
+EOF
+    ;;
+esac

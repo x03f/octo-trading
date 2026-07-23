@@ -25,3 +25,8 @@ results/*.npy
 node_modules/
 package-lock.json
 nautilus-venv/
+
+# --- Nautilus Trading Lab: локальное состояние (не в git) ---
+nautilus-lab/var/
+nautilus-lab/**/__pycache__/
+nautilus-lab/web/data/adaptive_state.json
