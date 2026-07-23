@@ -11,7 +11,9 @@ import numpy as np
 from .metrics import stats
 
 
-def run_portfolio(panel, weights, cost=None, funding=None, ppy=None):
+def run_portfolio(panel, weights, cost=None, funding=None, ppy=None, cost_vec=None):
+    """cost_vec — опциональный пер-монетный кост (доля, N-вектор): круговая стоимость на 1.0
+    оборота по каждой монете. Если задан — ПЕРЕОПРЕДЕЛЯЕТ скалярный cost (честно на неликвиде)."""
     C = panel.close
     T, N = C.shape
     if ppy is None:
@@ -20,6 +22,9 @@ def run_portfolio(panel, weights, cost=None, funding=None, ppy=None):
     if W.shape != (T, N):
         raise ValueError(f"weights {W.shape} != panel {(T, N)}")
     rate = cost.rate if cost is not None else 0.0
+    cvec = np.asarray(cost_vec, float) if cost_vec is not None else None
+    if cvec is not None and cvec.shape != (N,):
+        raise ValueError(f"cost_vec {cvec.shape} != N {(N,)}")
 
     equity = np.ones(T)
     w_prev = np.zeros(N)          # веса, сформированные на предыдущем баре (держим сейчас)
@@ -47,8 +52,9 @@ def run_portfolio(panel, weights, cost=None, funding=None, ppy=None):
         target = np.where(np.isfinite(W[t]), W[t], 0.0).copy()
         target[~valid] = 0.0
 
-        turn = float(np.abs(target - wdrift).sum())
-        c = turn * rate
+        dturn = np.abs(target - wdrift)          # пер-монетный оборот на этом баре
+        turn = float(dturn.sum())
+        c = float((dturn * cvec).sum()) if cvec is not None else turn * rate
         equity[t] = equity[t - 1] * gross * (1.0 - c)
 
         turnover_s[t] = turn

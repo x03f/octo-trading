@@ -8,6 +8,8 @@ from .carry import Carry
 from .ensemble import Ensemble
 from .squeeze import Squeeze
 from .rotation import Rotation
+from .absorption import Absorption
+from .newlisting import NewListing
 
 REGISTRY = {
     "turtle": Turtle, "S4": Turtle,
@@ -15,7 +17,9 @@ REGISTRY = {
     "pairs": Pairs, "S3": Pairs,
     "fluger": Fluger, "S1": Fluger,
     "squeeze": Squeeze, "S8": Squeeze,
+    "absorption": Absorption, "S12": Absorption,
+    "newlisting": NewListing, "S11": NewListing,
     "rotation": Rotation, "S9": Rotation,
 }
 
-__all__ = ["REGISTRY", "Turtle", "GridMR", "Pairs", "Fluger", "Carry", "Ensemble", "Squeeze", "Rotation"]
+__all__ = ["REGISTRY", "Turtle", "GridMR", "Pairs", "Fluger", "Carry", "Ensemble", "Squeeze", "Rotation", "Absorption", "NewListing"]
