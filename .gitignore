@@ -24,3 +24,4 @@ results/*.npy
 # --- Node (playwright-харнесс ставится локально) ---
 node_modules/
 package-lock.json
+nautilus-venv/
