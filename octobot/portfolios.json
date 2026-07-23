@@ -1,8 +1,14 @@
 {
-  "_комментарий": "Наборы монет для инстансов. Тикеры БЕЗ суффикса USDT — провижининг добавляет его сам. Нишевые наборы заполняются по результату микроструктурного отбора (см. COINS-SELECTION.md).",
+  "_комментарий": "Наборы монет для инстансов. Тикеры БЕЗ суффикса USDT — провижининг добавляет его сам. Нишевые наборы отобраны микроструктурным скринингом 23.07.2026 (см. COINS-SELECTION.md): 4 жёстких гейта — Binance-спот + полный файл в озере, история ≥400д, оборот >$2M в окнах 365д и 180д, спред Corwin-Schultz <15bps. Все прошли, 0 нарушений.",
 
-  "majors": ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX", "LINK", "DOT"],
+  "majors": ["BTC", "ETH", "SOL", "XRP", "BNB", "DOGE", "ZEC", "SUI", "TRX", "ADA"],
 
   "wide": ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX", "LINK", "DOT",
-           "TRX", "LTC", "BCH", "XLM", "HBAR", "SUI", "NEAR", "UNI", "APT", "ATOM"]
+           "TRX", "LTC", "BCH", "XLM", "HBAR", "SUI", "NEAR", "UNI", "APT", "ATOM"],
+
+  "niche": ["LINK", "AVAX", "NEAR", "LTC", "UNI", "AAVE", "BCH", "HBAR", "XLM",
+            "FIL", "DOT", "ICP", "INJ", "TIA", "ATOM"],
+
+  "niche_aggr": ["SHIB", "BONK", "ORDI", "FLOKI", "ETC", "GALA", "EIGEN",
+                 "BANANAS31", "ETHFI", "AXS"]
 }

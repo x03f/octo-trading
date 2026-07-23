@@ -28,6 +28,12 @@ INSTANCES = [
      "portfolio": "10 мажоров", "market": "фьючерсы ×10",  "url": None},
     {"key": "lev100", "port": 5009, "slot": 7, "strategy": "S8 «Сквиз»-скальп",
      "portfolio": "10 мажоров", "market": "фьючерсы ×100", "url": None},
+    {"key": "squeeze-niche",  "port": 5012, "slot": 8, "strategy": "S8 «Сквиз»",
+     "portfolio": "15 нишевых", "market": "спот",       "url": None},
+    {"key": "turtle-niche",   "port": 5013, "slot": 9, "strategy": "S4 «Черепаха»-55",
+     "portfolio": "15 нишевых", "market": "спот",       "url": None},
+    {"key": "squeeze-aggr",   "port": 5014, "slot": 10, "strategy": "S8 «Сквиз»",
+     "portfolio": "10 агрессивных", "market": "спот",   "url": None},
 ]
 
 
