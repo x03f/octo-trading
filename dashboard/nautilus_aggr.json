@@ -1,0 +1,1 @@
+{"set": "aggr", "coins": ["SHIB", "BONK", "ORDI", "FLOKI", "ETC", "GALA", "ETHFI", "AXS"], "n_instruments": 8, "start_balance": 100000, "end_balance": 99960.78, "pnl_pct": -0.04, "fills": 316, "elapsed_s": 7.3, "engine": "nautilus", "strategy": "S4 Donchian"}

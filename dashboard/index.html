@@ -196,6 +196,21 @@ tbody tr:hover{background:color-mix(in srgb,var(--ink-1) 4%,transparent)}
   </table>
 </div>
 
+<div class="card">
+  <h2>Nautilus — бэктест той же стратегии (S4 Donchian) по наборам монет</h2>
+  <p class="note">OctoBot держит одну стратегию на процесс (отсюда много поддоменов). Nautilus гоняет
+  весь набор монет в ОДНОМ процессе — это и есть его преимущество для многопоточных тестов. Здесь
+  историческая сверка на озере (2 года), не форвард. Все наборы в минусе — подтверждает, что у
+  пробойного Donchian устойчивого края нет (тот же вывод, что и у нашего движка).</p>
+  <table>
+    <thead><tr>
+      <th>Набор</th><th class="num">Инструментов</th><th class="num">Результат</th>
+      <th class="num">Сделок</th><th class="num">Время прогона</th>
+    </tr></thead>
+    <tbody id="ntbody"><tr><td colspan="5" class="note">загрузка…</td></tr></tbody>
+  </table>
+</div>
+
 </div>
 <script>
 const SLOT=n=>`var(--s${n})`;
@@ -215,6 +230,19 @@ let LAST=null;
 async function load(){
   try{const r=await fetch("api/data",{cache:"no-store"});LAST=await r.json();draw(LAST);}
   catch(e){document.getElementById("sub").textContent="не удалось получить данные";}
+  try{const r=await fetch("api/nautilus",{cache:"no-store"});drawNautilus(await r.json());}catch(e){}
+}
+
+function drawNautilus(d){
+  const tb=document.getElementById("ntbody");
+  if(!d||!d.runs||!d.runs.length){tb.innerHTML=`<tr><td colspan="5" class="note">нет прогонов</td></tr>`;return;}
+  const NAME={majors:"10 мажоров",niche:"15 нишевых",aggr:"агрессивные"};
+  tb.innerHTML=d.runs.map(x=>`<tr>
+    <td>${NAME[x.set]||x.set}</td>
+    <td class="num">${x.n_instruments}</td>
+    <td class="num ${cls(x.pnl_pct)}">${fmtPct(x.pnl_pct)}</td>
+    <td class="num">${x.fills}</td>
+    <td class="num">${x.elapsed_s}s</td></tr>`).join("");
 }
 
 function draw(d){

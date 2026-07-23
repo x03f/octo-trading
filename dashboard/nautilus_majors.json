@@ -1,0 +1,1 @@
+{"set": "majors", "coins": ["BTC", "ETH", "SOL", "XRP", "BNB", "DOGE", "ADA", "AVAX", "LINK", "DOT"], "n_instruments": 10, "start_balance": 100000, "end_balance": 90269.25, "pnl_pct": -9.73, "fills": 421, "elapsed_s": 8.9, "engine": "nautilus", "strategy": "S4 Donchian"}

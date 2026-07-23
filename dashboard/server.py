@@ -131,6 +131,19 @@ def data():
     })
 
 
+@app.route("/api/nautilus")
+def nautilus():
+    """Результаты бэктестов Nautilus (та же стратегия S4, что тестит OctoBot, но по наборам монет
+    в ОДНОМ процессе). Читаем JSON, которые пишет nautilus-venv/multi_backtest.py."""
+    out = []
+    for s in ("majors", "niche", "aggr"):
+        try:
+            out.append(json.load(open(f"{HERE}/nautilus_{s}.json")))
+        except Exception:
+            pass
+    return jsonify({"generated": time.time(), "runs": out})
+
+
 @app.route("/")
 def index():
     return send_from_directory(HERE, "index.html")

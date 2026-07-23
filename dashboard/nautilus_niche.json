@@ -1,0 +1,1 @@
+{"set": "niche", "coins": ["LINK", "AVAX", "NEAR", "LTC", "UNI", "AAVE", "BCH", "HBAR", "XLM", "FIL"], "n_instruments": 10, "start_balance": 100000, "end_balance": 99630.99, "pnl_pct": -0.37, "fills": 423, "elapsed_s": 10.9, "engine": "nautilus", "strategy": "S4 Donchian"}

@@ -26,7 +26,7 @@ class NewListing(Strategy):
     def __init__(self, listing_hi_days=3, start_day=3, end_day=20, confirm_n=3,
                  stop_hi_n=5, atr_n=14, atr_k=2.5, trail_n=20, target=-0.35,
                  time_stop=30, risk=0.005, max_w=0.2, max_gross=1.0,
-                 min_age_from_lake=30):
+                 min_age_from_lake=30, shortable_from=None, allowed_coins=None):
         self.listing_hi_days = listing_hi_days
         self.start_day, self.end_day = start_day, end_day
         self.confirm_n = confirm_n
@@ -34,6 +34,9 @@ class NewListing(Strategy):
         self.trail_n, self.target, self.time_stop = trail_n, target, time_stop
         self.risk, self.max_w, self.max_gross = risk, max_w, max_gross
         self.min_age_from_lake = min_age_from_lake   # чтобы взять только реальные листинги
+        # РЕАЛИЗМ ИСПОЛНЕНИЯ (по замечанию владельца: после листинга шорта/перпа какое-то время нет):
+        self.shortable_from = shortable_from or {}   # {coin: ts_ms} — раньше перп недоступен, шорт запрещён
+        self.allowed_coins = allowed_coins           # None = все; иначе только эти (настоящие листинги)
 
     def generate(self, panel):
         H, L, C = panel.high, panel.low, panel.close
@@ -56,6 +59,10 @@ class NewListing(Strategy):
         for i in range(N):
             if not real_listing[i]:
                 continue
+            coin = panel.coins[i]
+            if self.allowed_coins is not None and coin not in self.allowed_coins:
+                continue                                  # только настоящие листинги (без артефактов докачки)
+            short_ts = self.shortable_from.get(coin)      # раньше этого времени перп/шорта нет
             f = first[i]
             # H0 = максимум первых listing_hi_days дней ЭТОЙ монеты (индекс i обязателен!)
             hi_win = H[f:f + self.listing_hi_days, i]
@@ -81,8 +88,9 @@ class NewListing(Strategy):
                     hit_time = (t - entry_bar) >= self.time_stop
                     if hit_stop or hit_trail or hit_target or hit_time:
                         pos = 0.0
-                # вход: окно дней start..end, слом вниз, H0 не обновлён
-                if pos == 0.0 and self.start_day <= age <= self.end_day and not broke_H0:
+                # вход: окно дней start..end, слом вниз, H0 не обновлён, И ПЕРП УЖЕ ДОСТУПЕН
+                shortable = short_ts is None or panel.ts[t] >= short_ts
+                if pos == 0.0 and self.start_day <= age <= self.end_day and not broke_H0 and shortable:
                     lo_win = L[max(f + 1, t - self.confirm_n):t, i]   # min low дней +1..+confirm (монета i!)
                     if lo_win.size and np.isfinite(lo_win).any():
                         trig = np.nanmin(lo_win)
