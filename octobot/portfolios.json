@@ -1,0 +1,8 @@
+{
+  "_комментарий": "Наборы монет для инстансов. Тикеры БЕЗ суффикса USDT — провижининг добавляет его сам. Нишевые наборы заполняются по результату микроструктурного отбора (см. COINS-SELECTION.md).",
+
+  "majors": ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX", "LINK", "DOT"],
+
+  "wide": ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX", "LINK", "DOT",
+           "TRX", "LTC", "BCH", "XLM", "HBAR", "SUI", "NEAR", "UNI", "APT", "ATOM"]
+}

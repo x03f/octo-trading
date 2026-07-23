@@ -22,7 +22,7 @@ INSTANCES = [
      "portfolio": "20 пар",     "market": "спот",       "url": None},
     {"key": "turtle-wide",     "port": 5006, "slot": 4, "strategy": "S4 «Черепаха»-55",
      "portfolio": "20 пар",     "market": "спот",       "url": None},
-    {"key": "squeeze-futures", "port": 5007, "slot": 5, "strategy": "S8 «Сквиз»",
+    {"key": "squeeze-fut3",    "port": 5007, "slot": 5, "strategy": "S8 «Сквиз»",
      "portfolio": "10 мажоров", "market": "фьючерсы ×3", "url": None},
     {"key": "lev10",  "port": 5008, "slot": 6, "strategy": "S8 «Сквиз»-быстрый",
      "portfolio": "10 мажоров", "market": "фьючерсы ×10",  "url": None},
