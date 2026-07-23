@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="ru" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Бумажные стратегии — сводка</title>
+<style>
+/* ---- Палитра: роли, а не хекс. Значения из валидированной палитры (оба режима PASS). ---- */
+:root{
+  color-scheme:light;
+  --surface-1:#fcfcfb; --plane:#f9f9f7;
+  --ink-1:#0b0b0b; --ink-2:#52514e; --ink-muted:#898781;
+  --grid:#e1e0d9; --axis:#c3c2b7; --border:rgba(11,11,11,.10);
+  --up:#006300; --down:#d03b3b;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#008300; --s7:#4a3aa7;
+  --good:#0ca30c; --warn:#fab219; --crit:#d03b3b;
+}
+@media (prefers-color-scheme:dark){
+  :root:where(:not([data-theme="light"])){
+    color-scheme:dark;
+    --surface-1:#1a1a19; --plane:#0d0d0d;
+    --ink-1:#fff; --ink-2:#c3c2b7; --ink-muted:#898781;
+    --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,.10);
+    --up:#0ca30c; --down:#d03b3b;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --s7:#9085e9;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --surface-1:#1a1a19; --plane:#0d0d0d;
+  --ink-1:#fff; --ink-2:#c3c2b7; --ink-muted:#898781;
+  --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,.10);
+  --up:#0ca30c; --down:#d03b3b;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --s7:#9085e9;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--plane);color:var(--ink-1);
+  font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1280px;margin:0 auto;padding:24px 20px 56px}
+a{color:inherit}
+
+/* ---- Шапка ---- */
+header{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-end;justify-content:space-between;margin-bottom:8px}
+h1{font-size:20px;font-weight:650;margin:0;letter-spacing:-.01em}
+.sub{color:var(--ink-2);font-size:13px;margin-top:4px}
+.hero{display:flex;gap:28px;align-items:flex-start}
+.hero .fig{font-size:34px;font-weight:660;line-height:1;letter-spacing:-.02em}
+.hero .cap{font-size:12px;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+.delta{font-size:15px;font-weight:600}
+.secval{display:block;font-size:13px;font-weight:500;color:var(--ink-muted);letter-spacing:0;margin-top:3px}
+.up{color:var(--up)} .down{color:var(--down)} .flat{color:var(--ink-muted)}
+.hero>.btn{margin-top:18px}
+.btn{border:1px solid var(--border);background:var(--surface-1);color:var(--ink-2);
+  border-radius:8px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer}
+.btn:hover{color:var(--ink-1)}
+
+/* ---- Плитки ---- */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(212px,1fr));gap:12px;margin:20px 0}
+.tile{background:var(--surface-1);border:1px solid var(--border);border-radius:12px;padding:14px 15px;position:relative;overflow:hidden}
+.tile::before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:var(--c)}
+.tile .nm{font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:7px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--c);flex:none}
+.tile .meta{color:var(--ink-muted);font-size:11.5px;margin-top:3px}
+.tile .val{font-size:23px;font-weight:640;margin-top:10px;letter-spacing:-.01em}
+.tile .row{display:flex;justify-content:space-between;align-items:baseline;margin-top:6px;font-size:12.5px;color:var(--ink-2)}
+.status{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600}
+.status svg{width:12px;height:12px;flex:none}
+.badges{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.badge{font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:999px;
+  border:1px solid var(--border);color:var(--ink-2);white-space:nowrap}
+.badge.lev{color:var(--ink-1);border-color:currentColor;opacity:.85}
+.badge.hi{color:var(--crit);border-color:var(--crit)}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.chip{font-size:11.5px;padding:2px 8px;border-radius:6px;border:1px solid var(--border);
+  color:var(--ink-2);font-variant-numeric:tabular-nums}
+.pfblock{padding:12px 0;border-bottom:1px solid var(--border)}
+.pfblock:last-child{border-bottom:0}
+.pfhead{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-2)}
+.pfhead b{color:var(--ink-1);font-size:13px}
+
+/* ---- Карточки ---- */
+.card{background:var(--surface-1);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px}
+.card h2{font-size:14px;font-weight:640;margin:0 0 2px}
+.card .note{color:var(--ink-muted);font-size:12px;margin:0 0 14px}
+
+/* ---- Легенда ---- */
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:10px}
+.legend span{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-2)}
+.swatch{width:11px;height:11px;border-radius:3px;background:var(--c);flex:none}
+
+/* ---- График ---- */
+.chartbox{position:relative}
+svg.chart{display:block;width:100%;height:300px;overflow:visible}
+.gridline{stroke:var(--grid);stroke-width:1}
+.axisline{stroke:var(--axis);stroke-width:1}
+.tick{fill:var(--ink-muted);font-size:11px;font-variant-numeric:tabular-nums}
+.serie{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.endlab{font-size:11px;font-weight:600;paint-order:stroke;stroke:var(--surface-1);stroke-width:3px}
+.crosshair{stroke:var(--axis);stroke-width:1;stroke-dasharray:3 3}
+.hoverdot{stroke:var(--surface-1);stroke-width:2}
+.empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;color:var(--ink-muted);font-size:13px;gap:6px;pointer-events:none}
+.tip{position:absolute;pointer-events:none;background:var(--surface-1);border:1px solid var(--border);
+  border-radius:9px;padding:9px 11px;font-size:12px;box-shadow:0 6px 22px rgba(0,0,0,.13);opacity:0;transition:opacity .1s;min-width:186px}
+.tip b{display:block;font-size:11.5px;color:var(--ink-muted);font-weight:600;margin-bottom:6px}
+.tip .tr{display:flex;align-items:center;gap:7px;justify-content:space-between;margin-top:3px}
+.tip .tl{display:flex;align-items:center;gap:6px;color:var(--ink-2)}
+.tip .tv{font-variant-numeric:tabular-nums;font-weight:600;color:var(--ink-1)}
+
+/* ---- Таблица ---- */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--border)}
+th{font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-muted);font-weight:600}
+td.num{text-align:right;font-variant-numeric:tabular-nums}
+tbody tr:hover{background:color-mix(in srgb,var(--ink-1) 4%,transparent)}
+.nmcell{display:flex;align-items:center;gap:8px}
+.warnbox{background:var(--surface-1);border:1px solid var(--border);border-left:3px solid var(--warn);
+  border-radius:10px;padding:13px 15px;color:var(--ink-2);font-size:13px;margin-bottom:16px}
+.warnbox b{color:var(--ink-1)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div>
+    <h1>Бумажные стратегии — сводка</h1>
+    <div class="sub" id="sub">загрузка…</div>
+  </div>
+  <div class="hero">
+    <div>
+      <div class="cap">Суммарный капитал</div>
+      <div class="fig" id="totVal">—</div>
+    </div>
+    <div>
+      <div class="cap">Результат</div>
+      <div class="fig delta" id="totPnl">—</div>
+    </div>
+    <div>
+      <div class="cap">Сделок</div>
+      <div class="fig" id="totTrades">—</div>
+    </div>
+    <button class="btn" id="theme">Тема</button>
+  </div>
+</header>
+
+<div class="warnbox">
+  <b>Это симуляция, не реальные деньги.</b> Во всех инстансах реальная торговля отключена, API-ключи не заведены.
+  Каждый стартует с $10 000 виртуальных. Стратегии отобраны по результату вне выборки, но у всех знак
+  «убыток на первой половине истории, прибыль на второй» — это <b>режимная зависимость, а не доказанный край</b>.
+  Живой прогон нужен именно чтобы это проверить; ожидать стабильного плюса не следует.
+</div>
+
+<div class="tiles" id="tiles"></div>
+
+<div class="card">
+  <h2>Кривые капитала</h2>
+  <p class="note">Все стартуют с $10 000 — одна шкала, прямое сравнение. Наведите курсор для значений на дату.</p>
+  <div class="legend" id="legend"></div>
+  <div class="chartbox">
+    <svg class="chart" id="chart" role="img" aria-label="Кривые капитала по инстансам"></svg>
+    <div class="empty" id="empty" hidden></div>
+    <div class="tip" id="tip"></div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Про плечо — что мы измеряем</h2>
+  <p class="note">Плечо не «улучшает» стратегию, а умножает и прибыль, и путь до ликвидации. Три контура ×3 / ×10 / ×100 стоят рядом именно чтобы это увидеть на одних и тех же сигналах.</p>
+  <table>
+    <thead><tr><th>Плечо</th><th class="num">Комиссия за круг (от маржи)</th><th class="num">Ликвидация при движении</th><th>Что под него настроено</th></tr></thead>
+    <tbody>
+      <tr><td>×3</td><td class="num">0.12%</td><td class="num">~33%</td><td>обычные окна, ТФ 1h</td></tr>
+      <tr><td>×10</td><td class="num">0.40%</td><td class="num">~10%</td><td>короче каналы, ТФ 15m, 10% капитала на монету</td></tr>
+      <tr><td>×100</td><td class="num">4.0%</td><td class="num">~1%</td><td>самые короткие окна, ТФ 5m, 5% на монету, стопы</td></tr>
+    </tbody>
+  </table>
+  <p class="note" style="margin:12px 0 0">На ×100 круговая комиссия съедает <b>4% маржи за сделку</b> — чтобы просто выйти в ноль, движение должно быть больше 0.04%, а откат на 1% закрывает позицию. Ожидание честное: <b>×100 с высокой вероятностью сольётся</b>, и это и есть измеряемый результат — эмпирическая цена плеча, а не поиск грааля.</p>
+</div>
+
+<div class="card">
+  <h2>За какими монетами следят</h2>
+  <p class="note">Отслеживаемые пары читаются из профиля каждого инстанса. Составы сгруппированы, чтобы не повторять одни и те же монеты.</p>
+  <div id="pfs"></div>
+</div>
+
+<div class="card">
+  <h2>Детально</h2>
+  <p class="note">Полные значения — таблицей, чтобы цвет нигде не был единственным носителем смысла.</p>
+  <table>
+    <thead><tr>
+      <th>Инстанс</th><th>Стратегия</th><th>Монет</th><th>ТФ</th><th>Плечо</th><th>Рынок</th>
+      <th class="num">Капитал</th><th class="num">Результат</th><th class="num">Сделок</th><th>Состояние</th><th>Панель</th>
+    </tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+
+</div>
+<script>
+const SLOT=n=>`var(--s${n})`;
+const fmtUsd=v=>v==null?"—":"$"+v.toLocaleString("ru-RU",{maximumFractionDigits:0});
+const fmtPct=v=>v==null?"—":(v>=0?"+":"")+v.toFixed(2)+"%";
+const cls=v=>v==null?"flat":(Math.abs(v)<1e-9?"flat":(v>0?"up":"down"));
+const ICON={ok:'<svg viewBox="0 0 16 16" fill="currentColor"><path d="M6.2 11.6 3 8.4l1.1-1.1 2.1 2.1 5-5L12.3 5z"/></svg>',
+            off:'<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.6A6.4 6.4 0 1 0 8 14.4 6.4 6.4 0 0 0 8 1.6zm3.2 7.2H4.8V7.2h6.4z"/></svg>'};
+
+const th=document.getElementById("theme");
+th.onclick=()=>{const r=document.documentElement;
+  const cur=r.getAttribute("data-theme");
+  const dark=cur==="dark"||(cur!=="light"&&matchMedia("(prefers-color-scheme:dark)").matches);
+  r.setAttribute("data-theme",dark?"light":"dark");draw(LAST);};
+
+let LAST=null;
+async function load(){
+  try{const r=await fetch("api/data",{cache:"no-store"});LAST=await r.json();draw(LAST);}
+  catch(e){document.getElementById("sub").textContent="не удалось получить данные";}
+}
+
+function draw(d){
+  if(!d)return;
+  const T=d.totals;
+  document.getElementById("totVal").textContent=fmtUsd(T.value);
+  const p=document.getElementById("totPnl");
+  p.innerHTML=fmtPct(T.pnl_pct)+`<span class="secval">${T.pnl>=0?"+":"−"}${fmtUsd(Math.abs(T.pnl))}</span>`;
+  p.className="fig delta "+cls(T.pnl_pct);
+  document.getElementById("totTrades").textContent=T.trades;
+  document.getElementById("sub").textContent=
+    `${T.alive} из ${T.count} инстансов на связи · обновлено ${new Date(d.generated*1000).toLocaleString("ru-RU")}`;
+
+  // плитки
+  document.getElementById("tiles").innerHTML=d.instances.map(i=>{
+    const st=i.alive?`<span class="status" style="color:var(--good)">${ICON.ok} работает</span>`
+                    :`<span class="status" style="color:var(--crit)">${ICON.off} не отвечает</span>`;
+    return `<div class="tile" style="--c:${SLOT(i.slot)}">
+      <div class="nm"><span class="dot"></span>${i.strategy}</div>
+      <div class="meta">${i.portfolio} · ${i.market}</div>
+      <div class="badges">
+        <span class="badge">${i.pairs?i.pairs.length:0} монет</span>
+        <span class="badge">ТФ ${i.tf||"—"}</span>
+        ${i.leverage?`<span class="badge lev ${i.leverage>=10?"hi":""}">плечо ×${i.leverage}</span>`:""}
+      </div>
+      <div class="val">${fmtUsd(i.value)}</div>
+      <div class="row"><span class="${cls(i.pnl_pct)}" style="font-weight:600">${fmtPct(i.pnl_pct)}</span>
+        <span>${i.trades} сделок</span></div>
+      <div class="row">${st}</div></div>`;}).join("");
+
+  // легенда
+  document.getElementById("legend").innerHTML=d.instances.map(i=>
+    `<span style="--c:${SLOT(i.slot)}"><i class="swatch"></i>${i.strategy} · ${i.portfolio} · ${i.market}</span>`).join("");
+
+  // монеты, сгруппированные по составу портфеля
+  const groups={};
+  d.instances.forEach(i=>{const k=(i.pairs||[]).join(",");(groups[k]=groups[k]||{pairs:i.pairs||[],who:[]}).who.push(i);});
+  document.getElementById("pfs").innerHTML=Object.values(groups).map(g=>`
+    <div class="pfblock">
+      <div class="pfhead"><b>${g.pairs.length} монет</b>
+        ${g.who.map(i=>`<span style="display:inline-flex;align-items:center;gap:5px">
+          <i class="dot" style="--c:${SLOT(i.slot)};background:${SLOT(i.slot)}"></i>${i.strategy} · ${i.market}</span>`).join("")}
+      </div>
+      <div class="chips">${g.pairs.map(p=>`<span class="chip">${p}</span>`).join("")}</div>
+    </div>`).join("");
+
+  // таблица
+  document.getElementById("tbody").innerHTML=d.instances.map(i=>`<tr>
+    <td><span class="nmcell"><span class="dot" style="--c:${SLOT(i.slot)};background:${SLOT(i.slot)}"></span>${i.key}</span></td>
+    <td>${i.strategy}</td><td class="num">${i.pairs?i.pairs.length:0}</td><td>${i.tf||"—"}</td>
+    <td class="num">${i.leverage?"×"+i.leverage:"—"}</td><td>${i.market}</td>
+    <td class="num">${fmtUsd(i.value)}</td>
+    <td class="num ${cls(i.pnl_pct)}">${fmtPct(i.pnl_pct)}</td>
+    <td class="num">${i.trades}</td>
+    <td>${i.alive?'<span class="status" style="color:var(--good)">'+ICON.ok+' работает</span>'
+                 :'<span class="status" style="color:var(--crit)">'+ICON.off+' не отвечает</span>'}</td>
+    <td><a href="${i.url}" target="_blank" rel="noopener">открыть →</a></td></tr>`).join("");
+
+  chart(d);
+}
+
+function chart(d){
+  const svg=document.getElementById("chart"),empty=document.getElementById("empty"),tip=document.getElementById("tip");
+  const series=d.instances.filter(i=>i.series&&i.series.length);
+  const pts=series.reduce((a,s)=>a+s.series.length,0);
+  svg.innerHTML="";
+  if(!series.length||pts<=series.length){            // ещё нет истории — честная заглушка вместо ломаного графика
+    svg.style.height="116px";                        // не раздуваем карточку пустотой
+    empty.hidden=false;
+    empty.innerHTML=`<div style="font-weight:600;color:var(--ink-2)">Кривые появятся по мере торговли</div>
+      <div>Все инстансы стартовали с $10 000. График строится с первой точки истории —<br>
+      обычно первые значения появляются в течение часа, сделки — когда возникнет сигнал.</div>`;
+    return;
+  }
+  empty.hidden=true;
+  svg.style.height="300px";
+  const W=svg.clientWidth||900,H=300,M={t:12,r:64,b:26,l:56};
+  const xs=series.flatMap(s=>s.series.map(p=>p.t)),ys=series.flatMap(s=>s.series.map(p=>p.v));
+  const x0=Math.min(...xs),x1=Math.max(...xs);
+  let y0=Math.min(...ys,d.start_capital),y1=Math.max(...ys,d.start_capital);
+  const pad=(y1-y0)*.12||y1*.02; y0-=pad; y1+=pad;
+  const X=t=>M.l+(x1===x0?0:(t-x0)/(x1-x0))*(W-M.l-M.r);
+  const Y=v=>M.t+(1-(v-y0)/(y1-y0||1))*(H-M.t-M.b);
+  const ns="http://www.w3.org/2000/svg";
+  const el=(n,a)=>{const e=document.createElementNS(ns,n);for(const k in a)e.setAttribute(k,a[k]);return e;};
+
+  for(let i=0;i<=4;i++){                              // рецессивная сетка
+    const v=y0+(y1-y0)*i/4,y=Y(v);
+    svg.appendChild(el("line",{class:"gridline",x1:M.l,x2:W-M.r,y1:y,y2:y}));
+    const tx=el("text",{class:"tick",x:M.l-8,y:y+4,"text-anchor":"end"});
+    tx.textContent="$"+Math.round(v).toLocaleString("ru-RU");svg.appendChild(tx);
+  }
+  const yb=Y(d.start_capital);                        // база $10 000
+  svg.appendChild(el("line",{class:"axisline",x1:M.l,x2:W-M.r,y1:yb,y2:yb,"stroke-dasharray":"4 4"}));
+  [x0,x1].forEach((t,k)=>{const tx=el("text",{class:"tick",x:k?W-M.r:M.l,y:H-6,"text-anchor":k?"end":"start"});
+    tx.textContent=new Date(t*1000).toLocaleDateString("ru-RU",{day:"2-digit",month:"short"});svg.appendChild(tx);});
+
+  series.forEach(s=>{
+    const c=SLOT(s.slot),dd=s.series.map((p,i)=>(i?"L":"M")+X(p.t)+" "+Y(p.v)).join(" ");
+    svg.appendChild(el("path",{class:"serie",d:dd,stroke:c}));
+    const last=s.series[s.series.length-1];
+    svg.appendChild(el("circle",{cx:X(last.t),cy:Y(last.v),r:3.5,fill:c}));
+    const lb=el("text",{class:"endlab",x:X(last.t)+8,y:Y(last.v)+4,fill:c});   // прямая подпись = «рельеф»
+    lb.textContent=fmtPct(s.pnl_pct);svg.appendChild(lb);
+  });
+
+  const ch=el("line",{class:"crosshair",y1:M.t,y2:H-M.b,opacity:0});svg.appendChild(ch);
+  const dots=series.map(s=>{const c=el("circle",{r:5,fill:SLOT(s.slot),class:"hoverdot",opacity:0});svg.appendChild(c);return c;});
+  svg.addEventListener("pointermove",e=>{
+    const r=svg.getBoundingClientRect(),px=e.clientX-r.left;
+    if(px<M.l||px>W-M.r){ch.setAttribute("opacity",0);dots.forEach(c=>c.setAttribute("opacity",0));tip.style.opacity=0;return;}
+    const t=x0+(px-M.l)/(W-M.l-M.r)*(x1-x0);
+    ch.setAttribute("x1",px);ch.setAttribute("x2",px);ch.setAttribute("opacity",1);
+    let rows="";
+    series.forEach((s,i)=>{
+      let best=s.series[0];for(const p of s.series)if(Math.abs(p.t-t)<Math.abs(best.t-t))best=p;
+      dots[i].setAttribute("cx",X(best.t));dots[i].setAttribute("cy",Y(best.v));dots[i].setAttribute("opacity",1);
+      rows+=`<div class="tr"><span class="tl"><i class="swatch" style="--c:${SLOT(s.slot)};background:${SLOT(s.slot)}"></i>${s.strategy}</span><span class="tv">${fmtUsd(best.v)}</span></div>`;
+    });
+    tip.innerHTML=`<b>${new Date(t*1000).toLocaleString("ru-RU",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"})}</b>${rows}`;
+    tip.style.opacity=1;
+    const tw=tip.offsetWidth;tip.style.left=Math.min(px+14,W-tw-8)+"px";tip.style.top="14px";
+  });
+  svg.addEventListener("pointerleave",()=>{ch.setAttribute("opacity",0);dots.forEach(c=>c.setAttribute("opacity",0));tip.style.opacity=0;});
+}
+
+load();setInterval(load,60000);
+addEventListener("resize",()=>draw(LAST));
+</script>
+</body>
+</html>

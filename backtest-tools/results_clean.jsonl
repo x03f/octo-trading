@@ -1,0 +1,5 @@
+{"profile":"simple_dca","result":{"profitability_pct":-1.9914193838150949,"market_pct":-39.76815583315689,"trading_mode":"DCATradingMode","trades":1,"end_usdt":9500.000000012828,"errors":39,"status_final":"finished"}}
+{"profile":"smart_dca","result":{"profitability_pct":null,"market_pct":null,"trading_mode":"DCATradingMode","trades":0,"end_usdt":null,"errors":1,"status_final":"finished"}}
+{"profile":"grid_trading","result":{"profitability_pct":-46.15750591134589,"market_pct":-32.2582295710102,"trading_mode":"GridTradingMode","trades":851,"end_usdt":6.281232656272437,"errors":0,"status_final":"finished"}}
+{"profile":"trailing_grid_trading","result":{"profitability_pct":-46.15750591134589,"market_pct":-32.2582295710102,"trading_mode":"GridTradingMode","trades":851,"end_usdt":6.281232656272437,"errors":0,"status_final":"finished"}}
+{"profile":"staggered_orders_trading","result":{"profitability_pct":0.7982986581362229,"market_pct":-30.95654410503591,"trading_mode":"StaggeredOrdersTradingMode","trades":4,"end_usdt":10079.828692230963,"errors":20,"status_final":"finished"}}
