@@ -329,10 +329,16 @@ def _live_guard():
 
 @app.post("/api/portfolio/create")
 def portfolio_create(body: dict = Body(...)):
+    # ЗАЩИТА LIVE-ДЕЙСТВИЙ: live-портфель невозможен, пока не совпали 3 фактора safety.py
+    if body.get("mode") == "live":
+        allowed, st = _live_guard()
+        if not allowed:
+            return JSONResponse({"error": "live заблокирован", "factors": st.get("factors"),
+                                 "required": st.get("required")}, status_code=403)
     from ntlab.portfolios.manager import PortfolioManager
     m = PortfolioManager()
     p = m.create(body.get("name", "portfolio"), float(body.get("start_balance", 1000)),
-                 body.get("strategy", "S4"), body.get("instruments", ["BTC_USDT"]))
+                 body.get("strategy", "S4"), body.get("instruments", ["BTC_USDT"]), mode="paper")
     return {"created": p.pid, "status": p.status()}
 
 
