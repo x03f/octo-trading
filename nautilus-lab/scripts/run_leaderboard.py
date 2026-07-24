@@ -10,7 +10,8 @@ sys.path.insert(0, "/opt/octobot/strategy-lab")
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 import numpy as np
 from engine import load_panel, list_universe, run_portfolio, buy_hold_equal_weight
-from engine.strategies import Squeeze, Turtle, GridMR, Fluger, Rotation
+from engine.strategies import Squeeze, Turtle, GridMR, Fluger, Rotation, Pairs, Ensemble
+from engine.costs import GATE_TAKER
 from engine.validate import _stats_from_returns
 from engine.metrics import equity_returns, stats
 from engine.liquidity import passport, terciles, cost_model
@@ -88,10 +89,15 @@ def main():
     print(f"LEADERBOARD tf={tf} top-tercile {panel.N} coins {span[0]}..{span[1]}", flush=True)
     bh = buy_hold_equal_weight(panel)
     bh_stats = bh["stats"] if isinstance(bh, dict) and "stats" in bh else stats(bh, panel.ppy)
-    strategies = [("S8 Squeeze", Squeeze()), ("S4 Turtle", Turtle()), ("S5 Pendulum", GridMR()),
-                  ("S1 Fluger", Fluger()), ("S9 Rotation", Rotation())]
+    strategies = [
+        ("S8 Squeeze", Squeeze(), "volatility breakout"),
+        ("S4 Turtle", Turtle(), "trend following / breakout"),
+        ("S5 Pendulum", GridMR(), "mean reversion (regime-gated) / grid"),
+        ("S1 Fluger", Fluger(), "time-series momentum"),
+        ("S9 Rotation", Rotation(), "cross-sectional momentum"),
+        ("S3 Pairs", Pairs(), "pairs / statistical arbitrage")]
     rows = []
-    for label, strat in strategies:
+    for label, strat, category in strategies:
         W = strat.generate(panel)
         tr, te, full, res = split_metrics(panel, W, cvec)
         ts = trade_stats(W, panel.close)
@@ -111,13 +117,49 @@ def main():
                "profit_factor": ts["profit_factor"], "expectancy": ts["expectancy"],
                "avg_position": ts["avg_position"], "valid_sharpe": _r(tr.get("sharpe")),
                "oos_sharpe": _r(te.get("sharpe")), "oos_return_pct": round(te.get("total_return", 0) * 100, 1),
-               "verdict": verdict}
+               "verdict": verdict, "category": category}
         row["equity_curve"] = _downsample(res["equity"])            # нормированная кривая (старт=1.0)
         row["dd_curve"] = _downsample(_dd_curve(res["equity"]) * 100)  # просадка, %
         rows.append(row)
         print(f"  {label:14} ret {row['total_return_pct']:+6.1f}% Sh {row['sharpe'] or 0:+.2f} "
               f"OOS {row['oos_sharpe'] or 0:+.2f} DD {row['max_dd_pct']:.0f}% trades {row['n_trades']} "
               f"PF {row['profit_factor']} -> {verdict}", flush=True)
+    # S6 Оркестр — portfolio allocation между стратегиями (risk-parity мета-слой, kill-switch)
+    try:
+        ens = Ensemble()
+        eres = ens.run(panel, cost=GATE_TAKER)
+        er = equity_returns(eres["equity"]); T = len(er); a, b = int(T * 0.5), int(T * 0.75)
+        e_valid = _stats_from_returns(er[a:b], panel.ppy); e_test = _stats_from_returns(er[b:], panel.ppy)
+        e_full = eres["stats"]
+        wh = np.asarray(eres.get("weights"))              # [M, L] веса ног — оборот аллокации
+        alloc_turn = float(np.abs(np.diff(wh, axis=0)).sum(axis=1).mean()) if wh.ndim == 2 and len(wh) > 1 else 0.0
+        n_realloc = int((np.abs(np.diff(wh, axis=0)).sum(axis=1) > 0.01).sum()) if wh.ndim == 2 and len(wh) > 1 else 0
+        e_va, e_te = e_valid.get("sharpe"), e_test.get("sharpe")
+        e_surv = (e_va is not None and np.isfinite(e_va) and e_va > 0 and
+                  e_te is not None and np.isfinite(e_te) and e_te > 0.3)
+        erow = {"strategy": "S6 Orchestra", "capital_start": 10000,
+                "capital_end": round(10000 * (1 + e_full["total_return"]), 2),
+                "total_return_pct": round(e_full["total_return"] * 100, 1),
+                "cagr_pct": round(e_full.get("cagr", 0) * 100, 1) if np.isfinite(e_full.get("cagr", np.nan)) else None,
+                "sharpe": _r(e_full.get("sharpe")), "sortino": _r(e_full.get("sortino")),
+                "calmar": _r(e_full.get("calmar")), "max_dd_pct": round(e_full.get("max_dd", 0) * 100, 1),
+                "vol_ann_pct": round(e_full.get("vol_ann", 0) * 100, 1),
+                "turnover": round(alloc_turn, 3), "n_trades": n_realloc,
+                "win_rate": None, "profit_factor": None, "expectancy": None,
+                "avg_position": None, "valid_sharpe": _r(e_valid.get("sharpe")),
+                "oos_sharpe": _r(e_test.get("sharpe")), "oos_return_pct": round(e_test.get("total_return", 0) * 100, 1),
+                "verdict": "survived_3set" if e_surv else "edge_unproven",
+                "category": "portfolio allocation (risk-parity meta)",
+                "note": f"мета-аллокатор {len(eres.get('leg_names', []))} ног; сделки=реаллокации, "
+                        f"trade-метрики на уровне ног. avg_alive_legs={e_full.get('avg_alive_legs')}",
+                "equity_curve": _downsample(eres["equity"]),
+                "dd_curve": _downsample(_dd_curve(eres["equity"]) * 100)}
+        rows.append(erow)
+        print(f"  {'S6 Orchestra':14} ret {erow['total_return_pct']:+6.1f}% Sh {erow['sharpe'] or 0:+.2f} "
+              f"OOS {erow['oos_sharpe'] or 0:+.2f} DD {erow['max_dd_pct']:.0f}% realloc {n_realloc} -> {erow['verdict']}", flush=True)
+    except Exception as e:
+        print(f"  S6 Orchestra: ошибка {str(e)[:80]}", flush=True)
+
     rows.sort(key=lambda r: (r["oos_sharpe"] if r["oos_sharpe"] is not None else -99), reverse=True)
     bh_equity = bh["equity"] if isinstance(bh, dict) and "equity" in bh else bh
     x_dates = [time.strftime("%Y-%m-%d", time.gmtime(t / 1000)) for t in
@@ -129,6 +171,13 @@ def main():
               "benchmark_buyhold": {"total_return_pct": round(bh_stats["total_return"] * 100, 1),
                                     "sharpe": _r(bh_stats.get("sharpe")), "max_dd_pct": round(bh_stats.get("max_dd", 0) * 100, 1)},
               "strategies": rows,
+              "categories_covered": {
+                  "trend following": "S4 Turtle", "breakout": "S4 Turtle / S8 Squeeze",
+                  "time-series momentum": "S1 Fluger", "mean reversion": "S5 Pendulum",
+                  "volatility breakout": "S8 Squeeze", "regime-based": "S5 (regime-gated) + ADAPTIVE",
+                  "grid (research)": "S5 GridMR", "pairs / stat-arb": "S3 Pairs",
+                  "cross-sectional momentum": "S9 Rotation",
+                  "portfolio allocation": "S6 Orchestra (risk-parity meta)"},
               "honest_conclusion": "Трёхчастная дисциплина (VALID>0 И TEST>0.3). S9 на 50/50 казалась хороша, "
                                    "но VALID -1.17 -> режимная зависимость, НЕ край. Ни одна не прошла. "
                                    "Единственный кандидат S11 (event-класс, другая вселенная, прошёл трёхчастный).",
