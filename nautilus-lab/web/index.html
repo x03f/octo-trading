@@ -207,9 +207,9 @@ async function renderOverview(v){
       <tbody>${(d.backtests_nautilus||[]).map(x=>`<tr><td>${x.set}</td><td class="num">${x.n_instruments}</td><td class="num ${cls(x.pnl_pct)}">${pct(x.pnl_pct)}</td><td class="num">${x.fills}</td></tr>`).join("")}</tbody></table>
       <p class="note">Все в минусе — устойчивого края у пробойных стратегий нет (честный трёхчастный тест).</p></div>
   </div>
-  <div class="card" style="margin-top:14px"><h2>Форвард-контур (Nautilus-native, независим от OctoBot)</h2>
+  <div class="card" style="margin-top:14px"><h2>Форвард-контур (Nautilus-native)</h2>
     <div id="fwd-contours"></div>
-    <p class="note">Источник: собственный Nautilus/paper-контур (не OctoBot). Стартует заново — историческая кривая OctoBot заархивирована. Обновление live через SSE.</p></div>`;
+    <p class="note">Источник: собственный Nautilus/paper-контур. Обновление live через SSE. (Легаси-контур выведен 2026-07-24, история заархивирована.)</p></div>`;
   const hh=await get("/api/health");
   if(hh)$("#comps").innerHTML=Object.entries(hh.components).map(([k,ok])=>
     `<div style="padding:4px 0"><span class="dot ${ok?'on':(k=='gateio_keys'||k=='llm'?'na':'off')}"></span>${k} <span class="muted">${ok?"ok":(k=='gateio_keys'?"нет ключей":k=='llm'?"не настроен":"нет")}</span></div>`).join("");
@@ -409,7 +409,7 @@ async function renderSystem(v){
     <p class="note">git ${d.git_commit||"—"} · диск свободно ${d.disk_free_gb||"—"} GB · venv ${d.nautilus_venv?"ok":"нет"} · uptime API ${d.uptime_s||0}s.</p></div>
   <div class="card" style="margin-top:14px"><h2>Развёртывание (ADR-001: нативно, без Docker)</h2>
     <p class="note">systemd + venv + нативный PostgreSQL 17. Единый CLI <code>ntlab</code>. Дашборд — self-contained (FastAPI + inline SVG, без Node-сборки). Сервисы: ntlab-api, ntlab-paper, ntlab-nautilus, ntlab-forward.timer.</p></div>
-  <div class="card" style="margin-top:14px"><h2>P9: регрессия OctoBot → Nautilus</h2>
+  <div class="card" style="margin-top:14px"><h2>Миграция → NautilusTrader (завершена, OctoBot выведен)</h2>
     <div style="font-size:15px;margin-bottom:8px">Вердикт: <b class="${reg.verdict=='GO'?'pos':'neg'}">${reg.verdict||"—"}</b></div>
     ${(reg.checks||[]).map(c=>`<div class="kv"><span><span class="dot ${c.ok?'on':'off'}"></span>${c.component}</span><b class="${c.ok?'pos':'neg'}">${c.status}</b></div>`).join("")}
     <p class="note">${reg.recommendation||""}</p></div>`;

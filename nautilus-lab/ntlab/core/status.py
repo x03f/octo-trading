@@ -21,17 +21,27 @@ FLAGS = ["ECONOMIC_EDGE_UNPROVEN", "LIVE_BLOCKED"]
 CONTOURS = {
     "octobot_legacy": {
         "kind": "legacy",
-        "engine": "OctoBot",
-        "role": "Сохранённый рабочий контур S4/S8 (спот+фьючи). Регрессионное сравнение общей "
-                "инфраструктуры и возможность отката. НЕ валидирует S11 (S11 в OctoBot не было).",
-        "strategies": ["S4", "S8"],
-        "status": "operational",
+        "engine": "OctoBot (ВЫВЕДЕН)",
+        "role": "Выведен из эксплуатации 2026-07-24 после regression GO. Наработки (эвалуаторы "
+                "SqueezeBreakout/Donchian, профили) заархивированы; откат через архивы + git-тег "
+                "octobot-last-working. В активном продукте не работает.",
+        "strategies": [],
+        "status": "decommissioned",
         "validates_s11": False,
+    },
+    "nautilus_portfolios": {
+        "kind": "nautilus",
+        "engine": "NautilusTrader BacktestEngine (SimulatedExchange + Portfolio)",
+        "role": "ОСНОВНОЙ paper-контур портфелей: NautilusWeightStrategy → order lifecycle → "
+                "SimulatedExchange → Nautilus Portfolio (изолир. subprocess). Заменил custom PaperExecution.",
+        "strategies": ["S1", "S3", "S4", "S5", "S8", "S9"],
+        "status": "operational",
+        "is_nautilus": True,
     },
     "custom_paper_harness": {
         "kind": "custom-harness",       # ЯВНО: это НЕ Nautilus paper
         "engine": "ntlab custom harness (прямой Gate.io data + PaperExecution + функция сигнала)",
-        "role": "Независимый тестовый oracle для S11 на живых данных Gate.io. Использует "
+        "role": "ТОЛЬКО тестовый oracle для S11 на живых данных Gate.io (сверка сигнала). Использует "
                 "переиспользуемую функцию сигнала, НЕ Nautilus TradingNode/Strategy lifecycle.",
         "strategies": ["S11"],
         "status": "operational",

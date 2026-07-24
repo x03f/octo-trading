@@ -148,7 +148,7 @@ def _forward_pnl():
                 "pnl_pct": round((tot / base - 1) * 100, 2) if base else 0,
                 "trades": sum(int(r["trades"] or 0) for r in latest),
                 "snapshots": len(set(r["ts"] for r in rows)),
-                "as_of": latest[0]["iso"], "source": "octobot-paper (мигрируется на nautilus-paper)"}
+                "as_of": latest[0]["iso"], "source": "legacy csv (устарел; OctoBot выведен)"}
     except Exception as e:
         return {"available": False, "error": str(e)[:80]}
 
