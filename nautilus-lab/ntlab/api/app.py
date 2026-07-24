@@ -194,6 +194,14 @@ def adaptive():
             "note": "LLM — консультант; решение принимает платформа по автовалидации бэктестом."}
 
 
+@app.get("/api/adaptive-lifecycle")
+def adaptive_lifecycle():
+    st = _load("adaptive_lifecycle.json", None)
+    return {"available": st is not None, "lifecycle": st or {"champion": None, "challengers": []},
+            "note": "champion/challenger + стадии shadow->paper_canary->live_canary. LLM предлагает, "
+                    "платформа применяет только после автовалидации бэктестом. Без ключей — mock/deterministic."}
+
+
 @app.get("/api/system")
 def system():
     def svc(name):

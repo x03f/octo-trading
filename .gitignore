@@ -36,3 +36,5 @@ nautilus-lab/var/registry.duckdb
 nautilus-lab/var/experiments
 nautilus-lab/var/leaderboard.json
 nautilus-lab/var/futures_testnet_suite.json
+nautilus-lab/var/adaptive_versions.jsonl
+nautilus-lab/web/data/adaptive_lifecycle.json

@@ -91,10 +91,47 @@ class LLMAdvisor:
         raise ValueError(f"неизвестный провайдер {self.provider}")
 
 
+
+
+class MockAdvisor:
+    """Mock LLM: возвращает валидную Recommendation с КОНКРЕТНЫМ предложением параметра (для E2E
+    цикла применения — в отличие от DeterministicAdvisor, который консервативно держит keep).
+    Стоимость/токены имитируются для проверки учёта расходов."""
+    provider = "mock-llm"
+    model = "mock-v1"
+
+    def __init__(self, propose_param=None, propose_value=None):
+        self.propose_param = propose_param
+        self.propose_value = propose_value
+
+    def advise(self, stats):
+        from .schema import Recommendation, ParamChange
+        changes = []
+        if self.propose_param and self.propose_param in stats.current_params:
+            changes = [ParamChange(name=self.propose_param,
+                                   current=stats.current_params[self.propose_param],
+                                   recommended=self.propose_value,
+                                   reason="mock: подстройка под режим")]
+        return Recommendation(
+            market_regime="range", confidence=0.7,
+            regime_change_explanation="mock анализ режима",
+            param_changes=changes,
+            expected_effect="mock: улучшение риск-профиля",
+            invalidation_signals=["mock"], ttl_hours=24,
+            decision="test_new" if changes else "keep")
+
+    @staticmethod
+    def estimate_cost(tokens_in=2000, tokens_out=500):
+        # оценка стоимости запроса (для журнала расходов); mock-тариф
+        return round(tokens_in / 1e6 * 3.0 + tokens_out / 1e6 * 15.0, 6)
+
+
 def make_advisor(settings):
     """Фабрика: реальный LLM если есть ключ, иначе детерминированный (тесты/безопасный дефолт)."""
     if settings.LLM_PROVIDER == "anthropic" and settings.ANTHROPIC_API_KEY:
         return LLMAdvisor("anthropic", settings.ANTHROPIC_API_KEY, "claude-opus-4-8")
     if settings.LLM_PROVIDER == "openai" and settings.OPENAI_API_KEY:
         return LLMAdvisor("openai", settings.OPENAI_API_KEY, "gpt-4o")
+    if settings.LLM_PROVIDER == "mock":
+        return MockAdvisor()
     return DeterministicAdvisor()
