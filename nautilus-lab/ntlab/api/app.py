@@ -86,6 +86,15 @@ def strategies():
     return {"catalog": CATALOG, "buried_families": BURIED_FAMILIES}
 
 
+@app.get("/api/experiments")
+def experiments():
+    try:
+        from ntlab.lab import registry
+        return {"count": registry.count(), "leaderboard": registry.leaderboard(limit=50)}
+    except Exception as e:
+        return {"count": 0, "leaderboard": [], "error": str(e)[:100]}
+
+
 @app.get("/api/leaderboard")
 def leaderboard():
     return _load("leaderboard.json", {"available": False})
