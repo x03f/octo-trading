@@ -202,6 +202,18 @@ def adaptive_lifecycle():
                     "платформа применяет только после автовалидации бэктестом. Без ключей — mock/deterministic."}
 
 
+@app.get("/api/portfolios")
+def portfolios_list():
+    try:
+        from ntlab.portfolios.manager import PortfolioManager, LIVE_PRESETS
+        m = PortfolioManager()
+        return {"portfolios": m.all_status(), "count": len(m.portfolios),
+                "live_presets": LIVE_PRESETS,
+                "note": "Paper на живых данных Gate.io (симуляция). Live-presets ready=False до ключей+явного запуска."}
+    except Exception as e:
+        return {"portfolios": [], "count": 0, "error": str(e)[:100]}
+
+
 @app.get("/api/system")
 def system():
     def svc(name):
