@@ -31,6 +31,10 @@ systemctl daemon-reload
 
 echo "=== удаление инстансов (озеро/движок/nautilus-lab СОХРАНЯЮТСЯ) ==="
 rm -rf /opt/octobot/inst-* /opt/octobot/backtest
-# НЕ трогаем: strategy-lab (движок+озеро), nautilus-lab (продукт), nautilus-venv, bot (venv если нужен nautilus? — нет, отдельный)
 
-echo "ГОТОВО. OctoBot выведен. Проверь, что nautilus paper-контур работает: ntlab status"
+echo "=== удаление старого runtime OctoBot (/opt/octobot/bot, ~771M: venv+tentacles) ==="
+# кастомное состояние (tentacles+user) уже в /opt/octobot/octobot-bot-config-*.tar.gz; venv реинсталлируем pip
+rm -rf /opt/octobot/bot
+
+# СОХРАНЯЮТСЯ: strategy-lab (движок+озеро), nautilus-lab (продукт), nautilus-venv, архивы, git-тег.
+echo "ГОТОВО. OctoBot выведен ПОЛНОСТЬЮ (сервисы + инстансы + runtime). Проверь: ntlab status"
