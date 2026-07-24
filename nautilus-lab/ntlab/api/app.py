@@ -86,6 +86,11 @@ def strategies():
     return {"catalog": CATALOG, "buried_families": BURIED_FAMILIES}
 
 
+@app.get("/api/leaderboard")
+def leaderboard():
+    return _load("leaderboard.json", {"available": False})
+
+
 @app.get("/api/backtests")
 def backtests():
     return {

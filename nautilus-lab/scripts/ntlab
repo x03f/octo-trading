@@ -32,6 +32,7 @@ case "$cmd" in
   nautilus-restart) systemctl restart ntlab-nautilus; echo "ntlab-nautilus перезапущен (TradingNode SANDBOX)";;
   lifecycle-proof) $VENV/python "$LAB/scripts/run_sandbox_diag.py" "${1:-180}";;
   futures-testnet-suite) $VENV/python "$LAB/scripts/futures_testnet_suite.py";;
+  leaderboard) cd /opt/octobot/strategy-lab && /opt/octobot/bot/venv/bin/python nautilus-lab/scripts/run_leaderboard.py "${1:-1d}";;
   contours) curl -s -m 8 http://127.0.0.1:5020/api/contours | $VENV/python -m json.tool;;
   test)    cd "$LAB" && $VENV/python -m pytest tests/ -q 2>/dev/null || echo "pytest не установлен — запусти tests/*.py напрямую";;
   help|*)
