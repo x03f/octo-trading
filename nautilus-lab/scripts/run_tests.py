@@ -6,7 +6,7 @@ import subprocess, sys, os
 
 ROOT = "/opt/octobot/strategy-lab/nautilus-lab"
 CATEGORIES = {
-    "gateio-adapter":   ["test_gateio.py", "test_reconcile.py", "test_websocket.py", "test_futures.py"],
+    "gateio-adapter":   ["test_gateio.py", "test_gateio_orders.py", "test_reconcile.py", "test_websocket.py", "test_futures.py"],
     "nautilus-runtime": ["test_nautilus.py"],
     "paper-execution":  ["test_paper_service.py", "test_portfolios.py"],
     "adaptive-ai":      ["test_adaptive.py", "test_adaptive_lifecycle.py"],

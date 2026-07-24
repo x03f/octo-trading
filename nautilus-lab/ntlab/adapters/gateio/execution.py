@@ -125,6 +125,76 @@ class GateioExecution:
         if not self.live_enabled:
             raise LiveDisabledError("боевые ордера отключены: нужен явный live_enabled=True + подтверждение")
 
+    # ---- инструменты: точность и минимальные размеры (публично, для валидации ордеров) ----
+    def instrument(self, currency_pair):
+        r = self._c.get(f"{V4}/spot/currency_pairs/{currency_pair}")
+        r.raise_for_status()
+        d = r.json()
+        return {"pair": d.get("id"), "base": d.get("base"), "quote": d.get("quote"),
+                "amount_precision": int(d.get("amount_precision", 8)),
+                "price_precision": int(d.get("precision", 8)),
+                "min_base_amount": float(d.get("min_base_amount", 0) or 0),
+                "min_quote_amount": float(d.get("min_quote_amount", 0) or 0),   # min notional
+                "trade_status": d.get("trade_status"), "maker_fee": float(d.get("fee", 0) or 0)}
+
+    @staticmethod
+    def validate_order(spec, side, amount, price):
+        """Проверка против ограничений биржи: min amount, min notional, precision, торгуемость.
+        Возвращает нормализованные (amount, price) или кидает OrderValidationError."""
+        errs = []
+        amt = round(float(amount), spec["amount_precision"])
+        px = round(float(price), spec["price_precision"]) if price is not None else None
+        if spec["min_base_amount"] > 0 and amt < spec["min_base_amount"]:
+            errs.append(f"amount {amt} < min_base_amount {spec['min_base_amount']}")
+        if px is not None and spec["min_quote_amount"] > 0 and amt * px < spec["min_quote_amount"]:
+            errs.append(f"notional {amt*px:.4f} < min_notional {spec['min_quote_amount']}")
+        if spec.get("trade_status") and spec["trade_status"] != "tradable":
+            errs.append(f"пара не торгуется (trade_status={spec['trade_status']})")
+        if errs:
+            raise OrderValidationError("; ".join(errs))
+        return amt, px
+
+    def find_by_client_id(self, currency_pair, client_id):
+        """Идемпотентность: найти уже открытый ордер по client_id (text) до повторной отправки."""
+        for o in self.open_orders(currency_pair):
+            if o.get("client_id") == client_id:
+                return o
+        return None
+
+    def place_order_safe(self, currency_pair, side, amount, price=None, order_type="limit", text=None, spec=None):
+        """Валидирующая + ИДЕМПОТЕНТНАЯ обёртка place_order: проверка min/precision по spec и защита
+        от дублей (если ордер с таким client_id уже открыт — возвращает его, не создаёт второй)."""
+        self._require_live()
+        text = text or client_order_id()
+        spec = spec or self.instrument(currency_pair)
+        amt, px = self.validate_order(spec, side, amount, price if order_type == "limit" else None)
+        existing = self.find_by_client_id(currency_pair, text)
+        if existing:
+            return {**existing, "idempotent": True}
+        return self.place_order(currency_pair, side, amt, px if order_type == "limit" else None, order_type, text)
+
+    def cancel_all(self, currency_pair=None):
+        """Отменить все открытые ордера (по паре или все) — основа emergency stop."""
+        self._require_live()
+        out = []
+        for o in self.open_orders(currency_pair):
+            try:
+                out.append(self.cancel_order(o["id"], o["symbol"]))
+            except Exception as e:
+                out.append({"id": o["id"], "error": str(e)[:60]})
+        return out
+
+    def emergency_stop(self, currency_pair=None):
+        """АВАРИЙНАЯ ОСТАНОВКА: отменить все ордера и ЖЁСТКО отключить боевой режим.
+        После вызова любой мутирующий вызов снова требует явного live_enabled=True."""
+        result = {"cancelled": [], "live_disabled": True}
+        try:
+            if self.live_enabled:
+                result["cancelled"] = self.cancel_all(currency_pair)
+        finally:
+            self.live_enabled = False
+        return result
+
     # ---- нормализация моделей биржи → внутренний формат ----
     @staticmethod
     def _parse_order(o):
@@ -165,4 +235,9 @@ class GateioError(Exception):
 
 
 class LiveDisabledError(Exception):
+    pass
+
+
+class OrderValidationError(Exception):
+    """Ордер нарушает ограничения биржи (min amount / min notional / precision / не торгуется)."""
     pass

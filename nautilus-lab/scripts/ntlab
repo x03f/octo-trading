@@ -31,6 +31,7 @@ case "$cmd" in
   nautilus-logs)   journalctl -u ntlab-nautilus -n "${1:-40}" --no-pager;;
   nautilus-restart) systemctl restart ntlab-nautilus; echo "ntlab-nautilus перезапущен (TradingNode SANDBOX)";;
   lifecycle-proof) $VENV/python "$LAB/scripts/run_sandbox_diag.py" "${1:-180}";;
+  gateio-spot-suite) $VENV/python "$LAB/scripts/gateio_spot_integration_suite.py";;
   futures-testnet-suite) $VENV/python "$LAB/scripts/futures_testnet_suite.py";;
   experiment) /opt/octobot/nautilus-venv/bin/python -m ntlab.lab.experiment "${1:-S8}";;
   experiments) curl -s -m 8 http://127.0.0.1:5020/api/experiments | $VENV/python -m json.tool;;
