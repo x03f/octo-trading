@@ -15,6 +15,8 @@ CATEGORIES = {
     "integration":      ["test_integration.py"],
     "restart-recovery": ["test_restart_recovery.py"],
     "paper-soak":       ["test_paper_soak.py"],
+    "live-portfolio-node": ["test_portfolios_live.py", "test_nautilus_portfolio.py"],
+    "playwright-e2e":   ["e2e/test_dashboard_playwright.py"],
     "adaptive-ai":      ["test_adaptive.py", "test_adaptive_lifecycle.py", "test_adaptive_validation.py"],
     "e2e-lifecycle":    ["test_e2e_lifecycle.py"],
     "reproducibility":  ["test_reproducibility.py"],

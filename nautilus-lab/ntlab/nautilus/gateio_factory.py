@@ -14,25 +14,27 @@ class GateioDataClientConfig(LiveDataClientConfig, frozen=True):
 
 
 class _StaticInstrumentProvider(InstrumentProvider):
-    """Простой провайдер: заранее добавленный инструмент (обходим создание с precision)."""
-    def __init__(self, instrument=None):
+    """Простой провайдер: заранее добавленные инструменты (обходим создание с precision).
+    Поддерживает МНОЖЕСТВО инструментов (мульти-портфельный узел) + одиночный (S11)."""
+    def __init__(self, instruments=None):
         super().__init__(config=InstrumentProviderConfig())
-        self._preset = instrument
+        self._presets = [i for i in (instruments or []) if i is not None]
     async def load_all_async(self, filters=None):
-        if self._preset is not None:
-            self.add(self._preset)
+        for i in self._presets:
+            self.add(i)
     async def load_ids_async(self, instrument_ids, filters=None):
-        if self._preset is not None:
-            self.add(self._preset)
+        for i in self._presets:
+            self.add(i)
 
 
-PRESET_INSTRUMENT = {"ref": None}   # выставляется в runner до build()
+PRESET_INSTRUMENT = {"ref": None, "refs": []}   # ref=single (S11), refs=list (портфели)
 
 
 class GateioLiveDataClientFactory(LiveDataClientFactory):
     @staticmethod
     def create(loop, name, config, msgbus, cache, clock):
-        provider = _StaticInstrumentProvider(PRESET_INSTRUMENT["ref"])
+        insts = PRESET_INSTRUMENT.get("refs") or ([PRESET_INSTRUMENT["ref"]] if PRESET_INSTRUMENT.get("ref") else [])
+        provider = _StaticInstrumentProvider(insts)
         return GateioLiveDataClient(
             loop=loop, client_id=ClientId(name), msgbus=msgbus, cache=cache, clock=clock,
             instrument_provider=provider, config=config,

@@ -1,0 +1,7 @@
+[Unit]
+Description=Периодический Nautilus-native форвард-снимок (каждые 5 мин)
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+[Install]
+WantedBy=timers.target

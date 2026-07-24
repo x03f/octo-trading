@@ -233,6 +233,20 @@ def portfolios_list():
         return {"portfolios": [], "count": 0, "error": str(e)[:100]}
 
 
+@app.get("/api/portfolios-live")
+def portfolios_live():
+    """Долгоживущий Nautilus TradingNode(SANDBOX) портфелей на ЖИВОМ Gate.io WebSocket."""
+    st = _load("portfolios_live.json", None)
+    try:
+        active = subprocess.run(["systemctl", "is-active", "ntlab-portfolios"],
+                                capture_output=True, text=True, timeout=5).stdout.strip()
+    except Exception:
+        active = "unknown"
+    return {"service": active, "status": st or {"available": False},
+            "note": "Каждый портфель = Nautilus Strategy на живом WS → order lifecycle → "
+                    "SandboxExecution → Nautilus Portfolio. Реальные ордера невозможны (SANDBOX)."}
+
+
 @app.get("/api/system")
 def system():
     def svc(name):
@@ -248,7 +262,7 @@ def system():
         pass
     du = os.statvfs("/")
     return {
-        "services": {n: svc(n) for n in ("ntlab-api", "ntlab-paper", "postgresql@17-main")},
+        "services": {n: svc(n) for n in ("ntlab-api", "ntlab-paper", "ntlab-nautilus", "ntlab-portfolios", "postgresql@17-main")},
         "disk_free_gb": round(du.f_bavail * du.f_frsize / 1e9, 1),
         "git_commit": git, "uptime_s": round(time.time() - START),
         "nautilus_venv": Path("/opt/octobot/nautilus-venv").exists(),

@@ -1,0 +1,8 @@
+[Unit]
+Description=Nautilus-native форвард-снимок P&L (append в forward_history.jsonl)
+After=network.target
+[Service]
+Type=oneshot
+User=octobot
+Environment=PYTHONPATH=/opt/octobot/strategy-lab/nautilus-lab:/opt/octobot/strategy-lab
+ExecStart=/opt/octobot/nautilus-venv/bin/python /opt/octobot/strategy-lab/nautilus-lab/ntlab/paper/forward.py

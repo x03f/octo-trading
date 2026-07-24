@@ -50,7 +50,7 @@ class GateioLiveDataClient(LiveMarketDataClient):
         bar_type = command.bar_type
         if bar_type in self._tasks_map:
             return
-        self._log.info(f"подписка на бары {bar_type} (Gate.io {self._gate_symbol}, "
+        self._log.info(f"подписка на бары {bar_type} (Gate.io {self._gate_sym(bar_type)}, "
                        f"транспорт={'websocket' if self._use_ws else 'rest-polling'})")
         if self._use_ws:
             self._tasks_map[bar_type] = self.create_task(self._ws_bars(bar_type))
@@ -70,13 +70,20 @@ class GateioLiveDataClient(LiveMarketDataClient):
                 return k
         return "1-MINUTE"
 
+    def _gate_sym(self, bar_type):
+        """bar_type.instrument_id ('BTCUSDT.BINANCE') -> gate symbol ('BTC_USDT'). Мульти-инструмент."""
+        sym = str(bar_type.instrument_id).split(".")[0].split("-")[0]
+        if sym.endswith("USDT") and len(sym) > 4:
+            return sym[:-4] + "_USDT"
+        return self._gate_symbol
+
     async def _ws_bars(self, bar_type):
         """ОСНОВНОЙ транспорт: WebSocket Gate.io. Закрытый бар -> Bar+QuoteTick в шину Nautilus."""
         spec = self._spec(bar_type); gate_tf = {"1-MINUTE":"1m","5-MINUTE":"5m","15-MINUTE":"15m",
             "1-HOUR":"1h","4-HOUR":"4h","1-DAY":"1d"}.get(spec,"1m")
-        instrument = self._instrument_provider.find(bar_type.instrument_id)
+        instrument = self._cache.instrument(bar_type.instrument_id) or self._instrument_provider.find(bar_type.instrument_id)
         pp = instrument.price_precision if instrument else 2
-        sp = instrument.size_precision if instrument else 6
+        sp = instrument.size_precision if instrument else 4
         def on_bar(b):
             try:
                 ts_ms = b["ts"]
@@ -95,7 +102,7 @@ class GateioLiveDataClient(LiveMarketDataClient):
             except Exception as e:
                 self._log.warning(f"WS bar->nautilus ошибка: {str(e)[:60]}")
         self._ws = GateioSpotWS(on_bar=on_bar)
-        self._ws.subscribe_candles(self._gate_symbol, gate_tf)
+        self._ws.subscribe_candles(self._gate_sym(bar_type), gate_tf)
         # REST-бэкфилл на старте, затем WS-поток
         try:
             await self._ws.run()
@@ -108,13 +115,13 @@ class GateioLiveDataClient(LiveMarketDataClient):
     async def _poll_bars(self, bar_type):
         spec = self._spec(bar_type)
         gate_tf = TF_GATE.get(spec, "1m")
-        instrument = self._instrument_provider.find(bar_type.instrument_id)
+        instrument = self._cache.instrument(bar_type.instrument_id) or self._instrument_provider.find(bar_type.instrument_id)
         pp = instrument.price_precision if instrument else 2
-        sp = instrument.size_precision if instrument else 6
+        sp = instrument.size_precision if instrument else 4
         while True:
             try:
                 r = await self._http.get("/spot/candlesticks",
-                                         params={"currency_pair": self._gate_symbol, "interval": gate_tf, "limit": 3})
+                                         params={"currency_pair": self._gate_sym(bar_type), "interval": gate_tf, "limit": 3})
                 r.raise_for_status()
                 rows = r.json()
                 rows.sort(key=lambda k: int(float(k[0])))

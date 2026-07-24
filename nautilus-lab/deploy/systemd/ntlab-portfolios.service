@@ -1,0 +1,14 @@
+[Unit]
+Description=Nautilus Trading Lab — долгоживущий портфельный TradingNode (SANDBOX, живой Gate.io WS 1m)
+After=network-online.target
+Wants=network-online.target
+[Service]
+Type=simple
+User=octobot
+Environment=PYTHONPATH=/opt/octobot/strategy-lab/nautilus-lab:/opt/octobot/strategy-lab
+Environment=NTLAB_LIVE_ENABLED=false
+ExecStart=/opt/octobot/nautilus-venv/bin/python -m ntlab.nautilus.portfolios_node
+Restart=on-failure
+RestartSec=10
+[Install]
+WantedBy=multi-user.target

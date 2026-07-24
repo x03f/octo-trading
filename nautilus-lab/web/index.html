@@ -301,7 +301,7 @@ async function renderStrategies(v){
 }
 
 async function renderPortfolios(v){
-  const d=await get("/api/portfolios")||{};const fwd=await get("/api/forward")||{};
+  const d=await get("/api/portfolios")||{};const fwd=await get("/api/forward")||{};const live=await get("/api/portfolios-live")||{};const ls=live.status||{};
   const ps=d.portfolios||[];const presets=d.live_presets||{};
   v.innerHTML=`<div class="card"><h2>Paper-портфели (research→paper, живые данные Gate.io, симуляция)</h2>
     <div style="margin-bottom:10px"><input id="pf-name" placeholder="имя" value="Портфель"><input id="pf-bal" type="number" value="1000" style="width:90px">
@@ -314,6 +314,15 @@ async function renderPortfolios(v){
       <td><button class="act" onclick="pfAct('${p.pid}','run')">Run</button><button class="act" onclick="pfAct('${p.pid}','${p.paused?"resume":"pause"}')">${p.paused?"Resume":"Pause"}</button><button class="act danger" onclick="pfAct('${p.pid}','delete')">Del</button></td></tr>`).join("")}</tbody></table>`
     :`<p class="muted">Явных portfolio-инстансов пока нет (0). Форвард-контур работает через Nautilus runtime + custom harness ниже. Создать: <code>PortfolioManager().create(...)</code> или <code>from_research(run_id)</code>.</p>`}
     <p class="note">${d.note||""}</p></div>
+  <div class="card" style="margin-top:14px"><h2>⚓ Долгоживущий TradingNode (SANDBOX, живой Gate.io WS 1m)</h2>
+    <div style="margin-bottom:8px"><span class="dot ${live.service=='active'?'on':'off'}"></span>сервис ntlab-portfolios: <b>${live.service||"—"}</b>
+      <span class="tag research" style="margin-left:8px">NAUTILUS</span><span class="tag paper" style="margin-left:6px">${ls.transport||"WS"}</span></div>
+    ${(ls.portfolios&&ls.portfolios.length)?`<table><thead><tr><th>Портфель</th><th>Сигнал</th><th>Инстр.</th><th class="num">Alloc</th><th class="num">Equity</th><th class="num">P&L</th><th class="num">Бары</th><th class="num">Fills</th><th>Позиция</th></tr></thead>
+      <tbody>${ls.portfolios.map(p=>`<tr><td><b>${p.name}</b></td><td class="muted">${p.strategy}</td><td class="muted">${p.instrument}</td><td class="num">$${p.alloc_usdt}</td>
+        <td class="num">$${p.equity}</td><td class="num ${cls(p.pnl_pct)}">${pct(p.pnl_pct)}</td><td class="num">${p.bars_seen}</td><td class="num">${p.fills}</td>
+        <td>${p.in_position?'<span class="tag candidate">в позиции</span>':'<span class="muted">плоско</span>'}</td></tr>`).join("")}</tbody></table>
+      <p class="note">reconnect ${ls.reconnect_count??0} · gaps ${ls.gaps_detected??0} · ${live.note||""}</p>`
+      :`<p class="muted">${ls.note||"узел запускается / нет активных портфелей"}. Каждый портфель проходит через Nautilus Strategy → order lifecycle → SandboxExecution → Nautilus Portfolio на ЖИВОМ WS.</p>`}</div>
   <div class="card" style="margin-top:14px"><h2>Форвард-контуры (Nautilus-native)</h2>
     ${chartBars((fwd.snapshot?.contours||[]).map((c,i)=>({name:c.name+" ("+c.engine+")",value:c.equity,color:PALETTE[i%PALETTE.length]})),{fmt:money})}
     <p class="note">Суммарно ${money(fwd.snapshot?.total_equity)} · P&L ${pct(fwd.snapshot?.pnl_pct)} · снимков ${fwd.count||0}.</p></div>
@@ -350,7 +359,7 @@ async function renderLive(v){
       <div><span class="dot ${ping.public_data?.ok?'on':'off'}"></span>ping: <b>${ping.public_data?.ok?"ok":"нет"}</b></div>
       <p class="note">ключи: ${ping.keys_ready?"есть":"НЕТ (private/live заблокированы)"}. WS — основной транспорт market-data, REST — резерв.</p></div>
     <div class="card"><h2>Контуры (карта)</h2>
-      ${(ctr.contours||[]).map(c=>`<div class="kv"><span>${c.name||c.id||""} <span class="muted">${c.engine||c.type||""}</span></span><b class="muted">${c.validates||c.role||""}</b></div>`).join("")||'<span class="muted">—</span>'}</div>
+      ${Object.entries(ctr.contours||{}).map(([k,c])=>`<div class="kv"><span>${k} <span class="muted">${c.engine||c.kind||""}</span></span><b class="muted">${(c.status||c.role||"").slice(0,40)}</b></div>`).join("")||'<span class="muted">—</span>'}</div>
   </div>`;
 }
 
