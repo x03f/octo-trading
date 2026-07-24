@@ -33,3 +33,22 @@ def assert_no_live(runtime_mode: str):
         return  # эти режимы физически не создают боевой exec-client
     if not live_allowed(runtime_mode):
         raise PermissionError("LIVE заблокирован: нужны runtime=live + NTLAB_LIVE_ENABLED=true + файл-подтверждение")
+
+
+def safety_status(runtime_mode: str = "sandbox"):
+    """Снимок факторов защиты для дашборда (Live Trading). Ничего не разрешает — только читает."""
+    env_ok = os.getenv("NTLAB_LIVE_ENABLED", "false").lower() == "true"
+    try:
+        confirm_ok = CONFIRM_FILE.exists() and CONFIRM_FILE.read_text().strip() == CONFIRM_PHRASE
+    except Exception:
+        confirm_ok = False
+    factors = {"runtime_live": runtime_mode == "live", "env_enabled": env_ok, "confirm_file": confirm_ok}
+    allowed = all(factors.values())
+    return {
+        "live_allowed": allowed,
+        "reason": ("ВСЕ три фактора совпали — live разрешён" if allowed
+                   else "live заблокирован: не совпал минимум один из трёх факторов"),
+        "factors": factors,
+        "required": ["runtime=live", "NTLAB_LIVE_ENABLED=true", f"файл {CONFIRM_FILE.name} с фразой"],
+        "emergency_stop": "мгновенный: любой из факторов сброшен → боевой путь недоступен",
+    }

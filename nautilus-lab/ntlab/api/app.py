@@ -3,10 +3,10 @@
 
 Запуск: uvicorn ntlab.api.app:app --host 127.0.0.1 --port 5020
 """
-import json, os, time, subprocess
+import json, os, time, subprocess, asyncio
 from pathlib import Path
 from fastapi import FastAPI
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 import sys
@@ -253,6 +253,66 @@ def system():
         "git_commit": git, "uptime_s": round(time.time() - START),
         "nautilus_venv": Path("/opt/octobot/nautilus-venv").exists(),
     }
+
+
+@app.get("/api/experiment/{run_id}")
+def experiment_detail(run_id: str):
+    """Полный артефакт эксперимента: кривые эквити/просадки, walk-forward фолды, trade-метрики, косты."""
+    p = Path("/opt/octobot/nautilus-lab/var/experiments") / f"{run_id}.json"
+    try:
+        return _clean(json.load(open(p)))
+    except Exception:
+        return JSONResponse({"error": "не найден", "run_id": run_id}, status_code=404)
+
+
+@app.get("/api/forward")
+def forward():
+    """Nautilus-native форвард-контур: текущий снимок + историческая серия P&L."""
+    snap = _load("nautilus_forward_status.json", {"available": False})
+    hist = []
+    try:
+        for line in open("/opt/octobot/nautilus-lab/var/forward_history.jsonl"):
+            hist.append(json.loads(line))
+    except Exception:
+        pass
+    return {"snapshot": snap, "history": hist[-500:], "count": len(hist)}
+
+
+@app.get("/api/regression")
+def regression():
+    """P9: отчёт регрессии OctoBot→Nautilus (go/no-go по компонентам)."""
+    return _load("octobot_regression.json", {"available": False})
+
+
+@app.get("/api/safety")
+def safety():
+    """Статус многофакторной блокировки live-ордеров (emergency stop / live guard)."""
+    try:
+        from ntlab.nautilus.safety import live_allowed, safety_status
+        return safety_status()
+    except Exception:
+        # безопасный дефолт: live заблокирован
+        return {"live_allowed": False, "reason": "safety-модуль недоступен — live заблокирован",
+                "factors": {"runtime_live": False, "env_enabled": False, "confirm_file": False}}
+
+
+async def _sse_gen():
+    """SSE-поток: overview+runtime+forward каждые 5с (живые обновления без polling всей страницы)."""
+    while True:
+        payload = {
+            "ts": time.time(),
+            "overview": overview(),
+            "runtime": nautilus_runtime(),
+            "forward": _forward_pnl(),
+            "paper": _load("paper_s11_status.json", {}),
+        }
+        yield f"data: {json.dumps(_clean(payload), ensure_ascii=False)}\n\n"
+        await asyncio.sleep(5)
+
+
+@app.get("/api/stream")
+async def stream():
+    return StreamingResponse(_sse_gen(), media_type="text/event-stream")
 
 
 # --- дашборд ---

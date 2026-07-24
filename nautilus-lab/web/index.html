@@ -11,12 +11,16 @@ body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 -apple-system,
 header{display:flex;align-items:center;gap:14px;padding:14px 22px;border-bottom:1px solid var(--line);background:var(--panel)}
 header h1{font-size:16px;margin:0;font-weight:650;letter-spacing:.2px}
 header .badge{font-size:11px;padding:3px 8px;border-radius:5px;background:var(--chip);color:var(--ink2)}
+header .live{display:inline-flex;align-items:center;gap:5px}
+header .live i{width:7px;height:7px;border-radius:50%;background:var(--bad);display:inline-block}
+header .live.on i{background:var(--good);box-shadow:0 0 6px var(--good)}
 nav{display:flex;gap:2px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--panel);overflow-x:auto}
 nav button{background:none;border:none;color:var(--ink2);padding:11px 14px;cursor:pointer;font-size:13px;border-bottom:2px solid transparent;white-space:nowrap}
 nav button.on{color:var(--ink);border-bottom-color:var(--accent)}
-main{padding:20px 22px;max-width:1400px}
+main{padding:20px 22px;max-width:1440px}
 .grid{display:grid;gap:14px}
 .g4{grid-template-columns:repeat(4,1fr)}.g3{grid-template-columns:repeat(3,1fr)}.g2{grid-template-columns:repeat(2,1fr)}
+@media(max-width:900px){.g4,.g3,.g2{grid-template-columns:1fr 1fr}}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
 .card h2{font-size:13px;margin:0 0 12px;color:var(--ink2);font-weight:600;text-transform:uppercase;letter-spacing:.5px}
 .stat .v{font-size:26px;font-weight:680;letter-spacing:-.5px}
@@ -26,6 +30,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}
 th{text-align:left;color:var(--ink2);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--line);font-size:11px;text-transform:uppercase}
 td{padding:9px 10px;border-bottom:1px solid var(--panel2)}
 td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+tr.clk{cursor:pointer}tr.clk:hover{background:var(--panel2)}
 .tag{font-size:11px;padding:2px 7px;border-radius:4px;font-weight:600}
 .tag.candidate{background:rgba(38,166,154,.15);color:var(--good)}
 .tag.buried{background:rgba(239,83,80,.12);color:var(--bad)}
@@ -35,10 +40,16 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .dot.on{background:var(--good)}.dot.off{background:var(--bad)}.dot.na{background:var(--ink2)}
 .muted{color:var(--ink2);font-size:12px}
 .hidden{display:none}
-.pill{display:inline-block;font-size:11px;padding:2px 8px;border-radius:10px;background:var(--chip);color:var(--ink2);margin-right:6px}
+.pill{display:inline-block;font-size:11px;padding:2px 8px;border-radius:10px;background:var(--chip);color:var(--ink2);margin-right:6px;margin-bottom:4px}
 .note{font-size:12px;color:var(--ink2);line-height:1.5;margin:6px 0 0}
 .bar{height:6px;background:var(--panel2);border-radius:3px;overflow:hidden;margin-top:6px}
 .bar>i{display:block;height:100%;background:var(--good)}
+.stage{display:flex;gap:0;margin:8px 0}
+.stage>div{flex:1;text-align:center;padding:6px 4px;font-size:11px;border:1px solid var(--line);color:var(--ink2)}
+.stage>div.act{background:rgba(76,141,255,.15);color:var(--ink);border-color:var(--accent)}
+.stage>div:first-child{border-radius:6px 0 0 6px}.stage>div:last-child{border-radius:0 6px 6px 0}
+.kv{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--panel2);font-size:12px}
+.kv b{font-variant-numeric:tabular-nums}
 </style>
 </head>
 <body>
@@ -46,92 +57,141 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
   <h1>⚓ Nautilus Trading Lab</h1>
   <span class="badge" id="hdr-engine">NautilusTrader —</span>
   <span class="badge" id="hdr-mode">режим —</span>
-  <span class="badge" id="hdr-uptime" style="margin-left:auto"></span>
+  <span class="badge live" id="hdr-live" style="margin-left:auto"><i></i>live-поток</span>
+  <span class="badge" id="hdr-uptime"></span>
 </header>
 <nav id="nav"></nav>
 <main id="view"></main>
 
 <script>
-const TABS=[["overview","Overview"],["strategies","Strategies"],["backtests","Backtests"],
-  ["leaderboard","Leaderboard"],["research","Research Lab"],
-  ["portfolio","Portfolio"],["adaptive","Adaptive AI"],["datalake","Data Lake"],["system","System"]];
-let CUR="overview",DATA={};
+const TABS=[["overview","Overview"],["research","Research Lab"],["backtest","Backtest Explorer"],
+  ["strategies","Strategies"],["portfolios","Paper Portfolios"],["live","Live Trading"],
+  ["adaptive","Adaptive AI"],["datalake","Data Lake"],["system","System"]];
+let CUR="overview",SSE=null,LIVE={};
 const $=s=>document.querySelector(s);
-const pct=x=>x==null?"—":(x>=0?"+":"")+x.toFixed(2)+"%";
+const pct=x=>x==null?"—":(x>=0?"+":"")+(+x).toFixed(2)+"%";
 const cls=x=>x==null?"mut":x>=0?"pos":"neg";
-const sh=x=>x==null?"—":(x>=0?"+":"")+x.toFixed(2);
-
+const sh=x=>x==null?"—":(x>=0?"+":"")+(+x).toFixed(2);
+const money=x=>x==null?"—":"$"+(+x).toLocaleString(undefined,{maximumFractionDigits:0});
 async function get(p){try{const r=await fetch(p,{cache:"no-store"});return await r.json()}catch(e){return null}}
-
 function nav(){$("#nav").innerHTML=TABS.map(([k,t])=>`<button class="${k==CUR?'on':''}" onclick="go('${k}')">${t}</button>`).join("")}
 function go(k){CUR=k;nav();render()}
-
-async function boot(){
-  nav();
-  DATA.overview=await get("/api/overview");
-  const h=DATA.overview||{};
-  $("#hdr-engine").textContent="NautilusTrader "+(h.nautilus?.version||"—");
-  $("#hdr-mode").textContent=h.gateio?.keys_ready?"LIVE готов":"paper-only (нет ключей)";
-  render();setInterval(async()=>{if(CUR=="overview"||CUR=="system"){DATA.overview=await get("/api/overview");if(CUR=="overview")render()}},15000);
-}
-
-async function render(){
-  const v=$("#view");
-  if(CUR=="overview")return renderOverview(v);
-  if(CUR=="strategies")return renderStrategies(v);
-  if(CUR=="backtests")return renderBacktests(v);
-  if(CUR=="leaderboard")return renderLeaderboard(v);
-  if(CUR=="research")return renderResearch(v);
-  if(CUR=="portfolio")return renderPortfolio(v);
-  if(CUR=="adaptive")return renderAdaptive(v);
-  if(CUR=="datalake")return renderLake(v);
-  if(CUR=="system")return renderSystem(v);
-}
-
 function tile(v,l,c){return `<div class="card stat"><div class="v ${c||''}">${v}</div><div class="l">${l}</div></div>`}
 
-const PALETTE=["#4c8dff","#26a69a","#f0a020","#ef5350","#ab7df8","#42a5f5","#66bb6a"];
-// многосерийный линейный график (SVG, без внешних либ). series=[{name,data,color}], опции.
+/* ---------- SVG чарт-примитивы (без внешних либ) ---------- */
+const PALETTE=["#4c8dff","#26a69a","#f0a020","#ef5350","#ab7df8","#42a5f5","#66bb6a","#ec407a"];
 function chartLines(series,opts={}){
-  const W=opts.w||820,H=opts.h||240,pl=44,pr=12,pt=14,pb=22;
+  const W=opts.w||820,H=opts.h||240,pl=46,pr=12,pt=14,pb=22;
   const all=series.flatMap(s=>s.data).filter(x=>x!=null&&isFinite(x));
-  if(!all.length)return '<p class="muted">нет данных для графика</p>';
-  let lo=opts.min!=null?opts.min:Math.min(...all), hi=opts.max!=null?opts.max:Math.max(...all);
-  if(opts.log){lo=Math.log(Math.max(lo,1e-6));hi=Math.log(Math.max(hi,1e-6));}
+  if(!all.length)return '<p class="muted">нет данных</p>';
+  let lo=opts.min!=null?opts.min:Math.min(...all),hi=opts.max!=null?opts.max:Math.max(...all);
+  if(opts.log){lo=Math.log(Math.max(lo,1e-6));hi=Math.log(Math.max(hi,1e-6))}
   if(hi<=lo)hi=lo+1;
   const n=Math.max(...series.map(s=>s.data.length));
   const X=i=>pl+(W-pl-pr)*(n<2?0:i/(n-1));
   const tv=v=>opts.log?Math.log(Math.max(v,1e-6)):v;
   const Y=v=>pt+(H-pt-pb)*(1-(tv(v)-lo)/(hi-lo));
-  const path=s=>s.data.map((v,i)=>(v==null||!isFinite(v))?null:`${X(i)},${Y(v)}`).filter(Boolean).join(" ");
-  // сетка + подписи Y (4 линии)
+  const path=s=>s.data.map((v,i)=>(v==null||!isFinite(v))?null:`${X(i).toFixed(1)},${Y(v).toFixed(1)}`).filter(Boolean).join(" ");
   let grid="",labs="";
   for(let k=0;k<=4;k++){const yy=pt+(H-pt-pb)*k/4;const val=opts.log?Math.exp(hi-(hi-lo)*k/4):hi-(hi-lo)*k/4;
-    grid+=`<line x1="${pl}" y1="${yy}" x2="${W-pr}" y2="${yy}" stroke="#232838" stroke-width="1"/>`;
-    labs+=`<text x="${pl-6}" y="${yy+3}" text-anchor="end" font-size="10" fill="#8b93a7">${opts.fmt?opts.fmt(val):val.toFixed(2)}</text>`;}
-  // нулевая линия (для просадки/доходности)
-  let zero="";
-  if(!opts.log&&lo<0&&hi>0){const y0=Y(0);zero=`<line x1="${pl}" y1="${y0}" x2="${W-pr}" y2="${y0}" stroke="#4a5570" stroke-dasharray="3 3"/>`;}
-  const polys=series.map(s=>`<polyline fill="none" stroke="${s.color}" stroke-width="1.7" points="${path(s)}"/>`+
-    (s.fill?`<polygon fill="${s.color}22" points="${X(0)},${Y(opts.log?Math.exp(lo):lo)} ${path(s)} ${X(s.data.length-1)},${Y(opts.log?Math.exp(lo):lo)}"/>`:"")).join("");
-  // подписи X (первая/средняя/последняя)
+    grid+=`<line x1="${pl}" y1="${yy}" x2="${W-pr}" y2="${yy}" stroke="#232838"/>`;
+    labs+=`<text x="${pl-6}" y="${yy+3}" text-anchor="end" font-size="10" fill="#8b93a7">${opts.fmt?opts.fmt(val):val.toFixed(2)}</text>`}
+  let zero="";if(!opts.log&&lo<0&&hi>0){const y0=Y(0);zero=`<line x1="${pl}" y1="${y0}" x2="${W-pr}" y2="${y0}" stroke="#4a5570" stroke-dasharray="3 3"/>`}
+  const polys=series.map(s=>`<polyline fill="none" stroke="${s.color}" stroke-width="1.7" points="${path(s)}"/>`).join("");
   let xl="";const xs=opts.x||[];
-  if(xs.length){[0,Math.floor(xs.length/2),xs.length-1].forEach(i=>{
-    xl+=`<text x="${X(i*(n-1)/(xs.length-1))}" y="${H-6}" text-anchor="middle" font-size="10" fill="#8b93a7">${xs[i]}</text>`;});}
+  if(xs.length){[0,Math.floor(xs.length/2),xs.length-1].forEach(i=>{xl+=`<text x="${X(i*(n-1)/(xs.length-1))}" y="${H-6}" text-anchor="middle" font-size="10" fill="#8b93a7">${xs[i]}</text>`})}
   const leg=series.filter(s=>s.name).map(s=>`<span class="pill" style="color:${s.color}">■ ${s.name}</span>`).join("");
-  return `<div style="overflow-x:auto">${leg?`<div style="margin-bottom:6px">${leg}</div>`:""}
-    <svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:${W}px">${grid}${zero}${polys}${labs}${xl}</svg></div>`;
+  return `<div style="overflow-x:auto">${leg?`<div style="margin-bottom:6px">${leg}</div>`:""}<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:${W}px">${grid}${zero}${polys}${labs}${xl}</svg></div>`;
+}
+function heatColor(v,max){/* diverging красный-зелёный, 0=нейтраль */
+  const t=Math.max(-1,Math.min(1,v/(max||1)));
+  if(t>=0)return `rgba(38,166,154,${0.15+0.7*t})`;
+  return `rgba(239,83,80,${0.15+0.7*(-t)})`;
+}
+function chartHeatmap(rows,cols,matrix,opts={}){
+  const cw=opts.cw||44,ch=opts.ch||26,lw=opts.lw||60,th=18;
+  const max=opts.max||Math.max(0.0001,...matrix.flat().filter(x=>x!=null&&isFinite(x)).map(Math.abs));
+  const W=lw+cols.length*cw,H=th+rows.length*ch;
+  let out="";
+  cols.forEach((c,j)=>out+=`<text x="${lw+j*cw+cw/2}" y="${th-5}" text-anchor="middle" font-size="10" fill="#8b93a7">${c}</text>`);
+  rows.forEach((r,i)=>{
+    out+=`<text x="${lw-6}" y="${th+i*ch+ch/2+3}" text-anchor="end" font-size="10" fill="#8b93a7">${r}</text>`;
+    cols.forEach((c,j)=>{const v=matrix[i][j];
+      const fill=v==null||!isFinite(v)?"#1a1f2e":heatColor(v,max);
+      const txt=v==null||!isFinite(v)?"":(opts.fmt?opts.fmt(v):v.toFixed(0));
+      out+=`<rect x="${lw+j*cw}" y="${th+i*ch}" width="${cw-2}" height="${ch-2}" rx="2" fill="${fill}"/>`+
+           `<text x="${lw+j*cw+cw/2-1}" y="${th+i*ch+ch/2+3}" text-anchor="middle" font-size="9" fill="#e6e9ef">${txt}</text>`})});
+  return `<div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H}" width="${W}" style="max-width:100%">${out}</svg></div>`;
+}
+function chartCI(items,opts={}){/* доверительные интервалы: [{name,low,high,point,color}] горизонтально */
+  const W=opts.w||760,rowH=30,pl=120,pr=40,pt=8;const H=pt+items.length*rowH+16;
+  const all=items.flatMap(i=>[i.low,i.high,i.point,0]).filter(x=>x!=null&&isFinite(x));
+  let lo=Math.min(...all),hi=Math.max(...all);if(hi<=lo)hi=lo+1;const pad=(hi-lo)*0.08;lo-=pad;hi+=pad;
+  const X=v=>pl+(W-pl-pr)*(v-lo)/(hi-lo);
+  let out=`<line x1="${X(0)}" y1="${pt}" x2="${X(0)}" y2="${pt+items.length*rowH}" stroke="#4a5570" stroke-dasharray="3 3"/>`;
+  out+=`<text x="${X(0)}" y="${H-2}" text-anchor="middle" font-size="9" fill="#8b93a7">0</text>`;
+  items.forEach((it,i)=>{const y=pt+i*rowH+rowH/2;const col=it.color||"#4c8dff";
+    out+=`<text x="4" y="${y+3}" font-size="11" fill="#e6e9ef">${it.name}</text>`;
+    out+=`<line x1="${X(it.low)}" y1="${y}" x2="${X(it.high)}" y2="${y}" stroke="${col}" stroke-width="3" opacity="0.5"/>`;
+    out+=`<line x1="${X(it.low)}" y1="${y-4}" x2="${X(it.low)}" y2="${y+4}" stroke="${col}"/>`;
+    out+=`<line x1="${X(it.high)}" y1="${y-4}" x2="${X(it.high)}" y2="${y+4}" stroke="${col}"/>`;
+    if(it.point!=null)out+=`<circle cx="${X(it.point)}" cy="${y}" r="4" fill="${col}"/>`;
+    out+=`<text x="${W-pr+4}" y="${y+3}" font-size="10" fill="#8b93a7">${it.low.toFixed(1)}..${it.high.toFixed(1)}</text>`});
+  return `<div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:${W}px">${out}</svg></div>`;
+}
+function chartBars(items,opts={}){/* горизонтальные бары: [{name,value,color}] */
+  if(!items.length)return '<p class="muted">нет данных</p>';
+  const max=Math.max(...items.map(i=>Math.abs(i.value)))||1;
+  return `<div>${items.map(i=>{const w=Math.abs(i.value)/max*100;const col=i.color||(i.value>=0?"var(--good)":"var(--bad)");
+    return `<div style="margin:6px 0"><div style="display:flex;justify-content:space-between;font-size:12px"><span>${i.name}</span><b>${opts.fmt?opts.fmt(i.value):i.value}</b></div>
+    <div class="bar"><i style="width:${w}%;background:${col}"></i></div></div>`}).join("")}</div>`;
+}
+/* месячная доходность из кривой эквити + дат → матрица год×месяц */
+function monthlyMatrix(equity,dates){
+  if(!equity||!dates||equity.length<2)return null;
+  const byMonth={};
+  for(let i=0;i<dates.length;i++){const m=(dates[i]||"").slice(0,7);if(!m)continue;
+    if(!byMonth[m])byMonth[m]={first:equity[i],last:equity[i]};byMonth[m].last=equity[i]}
+  const months=Object.keys(byMonth).sort();
+  const years=[...new Set(months.map(m=>m.slice(0,4)))];
+  const MN=["01","02","03","04","05","06","07","08","09","10","11","12"];
+  const matrix=years.map(y=>MN.map(mn=>{const k=y+"-"+mn;return byMonth[k]?(byMonth[k].last/byMonth[k].first-1)*100:null}));
+  return {years,MN:["Я","Ф","М","А","М","И","И","А","С","О","Н","Д"],matrix};
 }
 
+/* ---------- boot + SSE ---------- */
+async function boot(){
+  nav();
+  const h=await get("/api/overview")||{};
+  $("#hdr-engine").textContent="NautilusTrader "+(h.nautilus?.version||"—");
+  $("#hdr-mode").textContent=h.gateio?.keys_ready?"LIVE готов":"paper-only (нет ключей)";
+  render();
+  startSSE();
+}
+function startSSE(){
+  try{
+    SSE=new EventSource("/api/stream");
+    SSE.onmessage=e=>{try{LIVE=JSON.parse(e.data);$("#hdr-live").classList.add("on");
+      const u=LIVE.overview?.forward;if(u&&$("#live-fwd"))$("#live-fwd").textContent=money(u.total)+" · "+pct(u.pnl_pct);
+      if(CUR=="overview"||CUR=="live")render();}catch(_){}};
+    SSE.onerror=()=>{$("#hdr-live").classList.remove("on")};
+  }catch(_){}
+}
+async function render(){
+  const v=$("#view");
+  const R={overview:renderOverview,research:renderResearch,backtest:renderBacktest,strategies:renderStrategies,
+    portfolios:renderPortfolios,live:renderLive,adaptive:renderAdaptive,datalake:renderLake,system:renderSystem};
+  (R[CUR]||renderOverview)(v);
+}
 
 async function renderOverview(v){
-  const d=DATA.overview||await get("/api/overview")||{};
+  const d=LIVE.overview||await get("/api/overview")||{};
   const f=d.forward||{},s=d.strategies||{},data=d.data||{};
   v.innerHTML=`
   <div class="grid g4">
-    ${tile(f.available?("$"+(f.total||0).toLocaleString()):"—","Форвард-портфель (paper)")}
+    ${tile(`<span id="live-fwd">${money(f.total)}</span>`,"Форвард-контур (Nautilus paper)")}
     ${tile(pct(f.pnl_pct),"Форвард P&L",cls(f.pnl_pct))}
-    ${tile((data.candles/1e6||0).toFixed(1)+"M","Свечей в озере")}
+    ${tile(((data.candles||0)/1e6).toFixed(1)+"M","Свечей в озере")}
     ${tile(s.candidate||0,"Стратегий-кандидатов","pos")}
   </div>
   <div class="grid g2" style="margin-top:14px">
@@ -139,159 +199,200 @@ async function renderOverview(v){
     <div class="card"><h2>Nautilus бэктест по наборам (S4 Donchian, 2 года)</h2>
       <table><thead><tr><th>Набор</th><th class="num">Инстр.</th><th class="num">P&L</th><th class="num">Сделок</th></tr></thead>
       <tbody>${(d.backtests_nautilus||[]).map(x=>`<tr><td>${x.set}</td><td class="num">${x.n_instruments}</td><td class="num ${cls(x.pnl_pct)}">${pct(x.pnl_pct)}</td><td class="num">${x.fills}</td></tr>`).join("")}</tbody></table>
-      <p class="note">Все в минусе — у пробойных стратегий устойчивого края нет (честный трёхчастный тест).</p>
-    </div>
+      <p class="note">Все в минусе — устойчивого края у пробойных стратегий нет (честный трёхчастный тест).</p></div>
   </div>
-  <div class="card" style="margin-top:14px"><h2>Данные</h2>
-    <span class="pill">${data.universe||"—"} монет</span>
-    <span class="pill">${data.problem_series??"—"} проблемных рядов</span>
-    <span class="pill">аудит ${data.generated?new Date(data.generated).toLocaleDateString("ru-RU"):"—"}</span>
-    <p class="note">Форвард-контур копит непредвзятые данные (${f.snapshots||0} снимков). Реальные деньги — ни на что до форвард-подтверждения.</p>
-  </div>`;
-  const h=await get("/api/health");
-  if(h)$("#comps").innerHTML=Object.entries(h.components).map(([k,ok])=>
+  <div class="card" style="margin-top:14px"><h2>Форвард-контур (Nautilus-native, независим от OctoBot)</h2>
+    <div id="fwd-contours"></div>
+    <p class="note">Источник: собственный Nautilus/paper-контур (не OctoBot). Стартует заново — историческая кривая OctoBot заархивирована. Обновление live через SSE.</p></div>`;
+  const hh=await get("/api/health");
+  if(hh)$("#comps").innerHTML=Object.entries(hh.components).map(([k,ok])=>
     `<div style="padding:4px 0"><span class="dot ${ok?'on':(k=='gateio_keys'||k=='llm'?'na':'off')}"></span>${k} <span class="muted">${ok?"ok":(k=='gateio_keys'?"нет ключей":k=='llm'?"не настроен":"нет")}</span></div>`).join("");
+  const fwd=await get("/api/forward");
+  if(fwd&&$("#fwd-contours"))$("#fwd-contours").innerHTML=(fwd.snapshot?.contours||[]).map(c=>
+    `<div class="kv"><span>${c.name} <span class="muted">${c.engine}</span></span><b>${money(c.equity)} / старт ${money(c.start)}</b></div>`).join("")||'<span class="muted">контуры не запущены</span>';
 }
 
-async function renderStrategies(v){
-  const d=await get("/api/strategies")||{};
-  v.innerHTML=`<div class="card"><h2>Каталог стратегий (статусы из честного трёхчастного теста)</h2>
-    <table><thead><tr><th>ID</th><th>Имя</th><th>Класс</th><th class="num">TEST Sharpe</th><th>Статус</th><th>Рынок</th></tr></thead>
-    <tbody>${(d.catalog||[]).map(s=>`<tr>
-      <td><b>${s.id}</b></td><td>${s.name}</td><td class="muted">${s.class}</td>
-      <td class="num ${cls(s.test_sharpe)}">${sh(s.test_sharpe)}</td>
-      <td><span class="tag ${s.status}">${s.status}</span></td><td class="muted">${s.market}</td></tr>
-      <tr><td></td><td colspan="5" class="note">${s.hypothesis}<br><b>Итог:</b> ${s.note}</td></tr>`).join("")}</tbody></table></div>
-    <div class="card" style="margin-top:14px"><h2>Похороненные семейства (для честной карты)</h2>
-      ${(d.buried_families||[]).map(x=>`<div class="note">🔴 ${x}</div>`).join("")}</div>`;
-}
-
-async function renderBacktests(v){
-  const d=await get("/api/backtests")||{};
-  const ts=d.three_set;
-  let rows="";
-  if(ts&&ts.rows)rows=ts.rows.map(r=>`<tr><td>${r.strategy}</td>
-    <td class="num ${cls(r.train?.sharpe)}">${sh(r.train?.sharpe)}</td>
-    <td class="num ${cls(r.valid?.sharpe)}">${sh(r.valid?.sharpe)}</td>
-    <td class="num ${cls(r.test?.sharpe)}">${sh(r.test?.sharpe)}</td></tr>`).join("");
-  v.innerHTML=`
-  <div class="card"><h2>Чистый трёхчастный тест (TEST не участвует в отборе)</h2>
-    <table><thead><tr><th>Стратегия</th><th class="num">TRAIN Sh</th><th class="num">VALID Sh</th><th class="num">TEST Sh</th></tr></thead>
-    <tbody>${rows||'<tr><td colspan=4 class=muted>нет данных</td></tr>'}</tbody></table>
-    <p class="note">Победитель по VALID (S5) на TEST даёт -1.67 — доказанного края у пробойных нет. Победитель отбирается по VALID, TEST читается один раз.</p></div>
-  <div class="card" style="margin-top:14px"><h2>Nautilus (та же логика, много инструментов в 1 процессе)</h2>
-    <table><thead><tr><th>Набор</th><th class="num">Инстр.</th><th class="num">P&L</th><th class="num">Сделок</th><th class="num">Время</th></tr></thead>
-    <tbody>${(d.nautilus||[]).map(x=>`<tr><td>${x.set}</td><td class="num">${x.n_instruments}</td><td class="num ${cls(x.pnl_pct)}">${pct(x.pnl_pct)}</td><td class="num">${x.fills}</td><td class="num">${x.elapsed_s}s</td></tr>`).join("")}</tbody></table></div>`;
-}
-
-
-async function renderLeaderboard(v){
-  const d=await get("/api/leaderboard")||{};
-  const rows=d.strategies||[];
-  const bh=d.benchmark_buyhold||{};
-  v.innerHTML=`<div class="card"><h2>Leaderboard стратегий (трёхчастная дисциплина, пер-монетные косты)</h2>
-    <p class="note">Вселенная: ${d.universe||"—"} (${d.n_coins||0} монет) · период ${(d.span||[]).join("..")} · benchmark buy-hold ${pct(bh.total_return_pct)} (DD ${pct(bh.max_dd_pct)}).</p>
-    <table><thead><tr><th>Стратегия</th><th class="num">Капитал</th><th class="num">Ret</th><th class="num">Sharpe</th><th class="num">Sortino</th><th class="num">Calmar</th><th class="num">MaxDD</th><th class="num">Сделок</th><th class="num">WinRate</th><th class="num">PF</th><th class="num">VALID</th><th class="num">TEST</th><th>Вердикт</th></tr></thead>
-    <tbody>${rows.map(r=>`<tr>
-      <td><b>${r.strategy}</b></td><td class="num">$${(r.capital_end||0).toLocaleString()}</td>
-      <td class="num ${cls(r.total_return_pct)}">${pct(r.total_return_pct)}</td>
-      <td class="num ${cls(r.sharpe)}">${sh(r.sharpe)}</td><td class="num">${sh(r.sortino)}</td><td class="num">${sh(r.calmar)}</td>
-      <td class="num neg">${pct(r.max_dd_pct)}</td><td class="num">${r.n_trades??"—"}</td><td class="num">${r.win_rate!=null?(r.win_rate*100).toFixed(0)+"%":"—"}</td>
-      <td class="num">${r.profit_factor??"—"}</td><td class="num ${cls(r.valid_sharpe)}">${sh(r.valid_sharpe)}</td><td class="num ${cls(r.oos_sharpe)}">${sh(r.oos_sharpe)}</td>
-      <td><span class="tag ${r.verdict=='survived_3set'?'candidate':'buried'}">${r.verdict}</span></td></tr>`).join("")}</tbody></table>
-    <p class="note">${d.honest_conclusion||""}</p></div>
-  <div class="card" style="margin-top:14px"><h2>Кривые эквити (норм. 1.0, лог-масштаб) vs buy-hold</h2>
-    ${chartLines([
-      ...rows.map((r,i)=>({name:r.strategy,data:r.equity_curve||[],color:PALETTE[i%PALETTE.length]})),
-      {name:"buy-hold",data:d.benchmark_curve||[],color:"#8b93a7"}
-    ],{log:true,x:d.x_dates,fmt:v=>v.toFixed(2)+"x"})}
-    <p class="note">Логарифмическая ось — честное сравнение мультипликаторов. Ни одна кривая не прошла трёхчастный тест (см. VALID/TEST выше).</p></div>
-  <div class="card" style="margin-top:14px"><h2>Просадки, %</h2>
-    ${chartLines(rows.map((r,i)=>({name:r.strategy,data:r.dd_curve||[],color:PALETTE[i%PALETTE.length]})),
-      {x:d.x_dates,max:0,fmt:v=>v.toFixed(0)+"%"})}
-    <p class="note">Глубина и длительность просадок — почему высокий Ret не равен пригодности (S9: DD ${pct((rows.find(r=>r.strategy.includes("Rotation"))||{}).max_dd_pct)}).</p></div>`;
-}
 async function renderResearch(v){
   const d=await get("/api/experiments")||{};
   const rows=d.leaderboard||[];
   v.innerHTML=`<div class="card"><h2>Research Lab — реестр экспериментов (DuckDB, воспроизводимо)</h2>
-    <p class="note">Экспериментов в реестре: <b>${d.count||0}</b>. Каждый: git_sha + версия данных + seed, метрики + трёхчастный + walk-forward + Monte Carlo + артефакт.</p>
-    <table><thead><tr><th>Run ID</th><th>Стратегия</th><th class="num">Ret</th><th class="num">Sharpe</th><th class="num">TEST</th><th class="num">MaxDD</th><th class="num">Сделок</th><th>Вердикт</th><th>Создан</th></tr></thead>
-    <tbody>${rows.map(r=>`<tr><td class="muted" style="font-size:11px">${(r.run_id||"").slice(0,26)}</td><td><b>${r.strategy}</b></td>
+    <p class="note">Экспериментов: <b>${d.count||0}</b>. Каждый: git_sha + версия данных + seed · трёхчастный · НАСТОЯЩИЙ walk-forward (ре-оптимизация) · Monte Carlo · trade-метрики · полный артефакт (equity/DD/косты).</p>
+    <table><thead><tr><th>Run ID</th><th>Strat</th><th class="num">Ret</th><th class="num">Sharpe</th><th class="num">TEST</th><th class="num">WF-OOS</th><th class="num">MC CI</th><th class="num">Сделок</th><th class="num">PF</th><th>Вердикт</th></tr></thead>
+    <tbody>${rows.map(r=>`<tr class="clk" onclick="showExp('${r.run_id}')">
+      <td class="muted" style="font-size:11px">${(r.run_id||"").slice(4,24)}</td><td><b>${r.strategy}</b></td>
       <td class="num ${cls(r.total_return*100)}">${pct((r.total_return||0)*100)}</td><td class="num ${cls(r.sharpe)}">${sh(r.sharpe)}</td>
-      <td class="num ${cls(r.test_sharpe)}">${sh(r.test_sharpe)}</td><td class="num neg">${pct((r.max_dd||0)*100)}</td>
-      <td class="num">${r.n_trades??"—"}</td><td><span class="tag ${r.verdict=='survived_3set'?'candidate':'buried'}">${r.verdict}</span></td>
-      <td class="muted" style="font-size:11px">${(r.created||"").slice(0,10)}</td></tr>`).join("")||'<tr><td colspan=9 class=muted>нет экспериментов</td></tr>'}</tbody></table>
-    <p class="note">Запуск: ntlab experiment &lt;S8|S4|...&gt; · Monte Carlo bootstrap даёт доверительный интервал Sharpe (край не доказан, если CI пересекает 0).</p></div>`;
+      <td class="num ${cls(r.test_sharpe)}">${sh(r.test_sharpe)}</td><td class="num ${cls(r.wf_sharpe)}">${sh(r.wf_sharpe)}</td>
+      <td class="num muted" style="font-size:11px">${r.mc_sharpe_p05!=null?r.mc_sharpe_p05.toFixed(1)+".."+(r.mc_sharpe_p95||0).toFixed(1):"—"}</td>
+      <td class="num">${r.n_trades??"—"}</td><td class="num">${r.profit_factor??"—"}</td>
+      <td><span class="tag ${r.verdict=='survived_3set'?'candidate':'buried'}">${r.verdict}</span></td></tr>`).join("")||'<tr><td colspan=10 class=muted>нет экспериментов — ntlab experiment &lt;S8|S4|..&gt;</td></tr>'}</tbody></table>
+    <p class="note">Клик по строке — детальный артефакт (кривые, walk-forward фолды, Monte Carlo CI). Запуск: <code>ntlab experiment S8</code> / batch: <code>run_experiments_batch.py</code>.</p></div>
+    <div id="exp-detail" style="margin-top:14px"></div>`;
+}
+async function showExp(rid){
+  const d=await get("/api/experiment/"+rid);const box=$("#exp-detail");if(!d||d.error){box.innerHTML='<div class="card muted">артефакт не найден</div>';return}
+  const wf=d.walk_forward||{};
+  const mci=[{name:d.strategy+" TEST",low:d.mc_sharpe_p05,high:d.mc_sharpe_p95,point:d.test_sharpe,color:"#4c8dff"}];
+  const mm=monthlyMatrix(d.equity_curve,null);
+  box.innerHTML=`<div class="card"><h2>Артефакт ${d.strategy} · ${(d.run_id||"").slice(4,24)}</h2>
+    <div class="grid g4">
+      ${tile(money(10000*(1+(d.total_return||0))),"Капитал из $10k",cls(d.total_return))}
+      ${tile(pct((d.total_return||0)*100),"Return",cls(d.total_return))}
+      ${tile(pct((d.max_dd||0)*100),"Max DD","neg")}
+      ${tile(d.n_trades??"—","Сделок")}
+    </div>
+    <div class="grid g2" style="margin-top:12px">
+      <div><h2>Кривая эквити (норм.)</h2>${chartLines([{name:"equity",data:d.equity_curve||[],color:"#4c8dff"}],{h:200})}</div>
+      <div><h2>Просадка, %</h2>${chartLines([{name:"dd",data:d.dd_curve||[],color:"#ef5350"}],{h:200,max:0})}</div>
+    </div>
+    <div class="grid g2" style="margin-top:12px">
+      <div><h2>Walk-forward фолды (ре-оптимизация)</h2>
+        ${wf.folds?chartBars(wf.folds.map((f,i)=>({name:"fold "+(i+1),value:f.train_sharpe||0})),{fmt:v=>v.toFixed(2)}):'<span class="muted">нет</span>'}
+        <p class="note">grid ${wf.grid_size||"—"} конфигов · WF-OOS Sharpe <b>${sh(d.wf_sharpe)}</b> · честная под-метрика oos_folds ${sh(d.oos_folds_sharpe)} (НЕ walk-forward).</p></div>
+      <div><h2>Monte Carlo CI (Sharpe, bootstrap)</h2>${chartCI(mci)}
+        <p class="note">Косты: est_fees ${d.est_fees_frac??"—"} доля эквити · turnover ${d.total_turnover??"—"} · ${d.cost_model||""}</p></div>
+    </div>
+    ${mm?`<h2 style="margin-top:12px">Месячная доходность, %</h2>${chartHeatmap(mm.years,mm.MN,mm.matrix,{fmt:v=>v.toFixed(0)})}`:""}
+    <p class="note">Период ${d.period} · seed ${d.seed} · benchmark buy-hold ${pct((d.benchmark_return||0)*100)} · вердикт <b>${d.verdict}</b>.</p></div>`;
+  box.scrollIntoView({behavior:"smooth",block:"nearest"});
 }
 
-async function renderPortfolio(v){
-  const d=await get("/api/portfolio")||{},f=d.forward||{};
-  const nr=await get("/api/nautilus-runtime")||{},ns=nr.status||{};
-  const pp=await get("/api/paper")||{},ps=pp.status||{};
-  v.innerHTML=`
-  <div class="card"><h2>⚓ Nautilus runtime (ФАКТИЧЕСКИЙ TradingNode, SANDBOX)</h2>
+async function renderBacktest(v){
+  const d=await get("/api/leaderboard")||{};const rows=d.strategies||[];const bh=d.benchmark_buyhold||{};
+  v.innerHTML=`<div class="card"><h2>Backtest Explorer — leaderboard (трёхчастная дисциплина, пер-монетные косты)</h2>
+    <p class="note">Вселенная ${d.universe||"—"} (${d.n_coins||0} монет) · период ${(d.span||[]).join("..")} · benchmark buy-hold ${pct(bh.total_return_pct)} (DD ${pct(bh.max_dd_pct)}).</p>
+    <table><thead><tr><th>Стратегия</th><th>Категория</th><th class="num">Капитал</th><th class="num">Ret</th><th class="num">Sharpe</th><th class="num">Sortino</th><th class="num">Calmar</th><th class="num">MaxDD</th><th class="num">Сделок</th><th class="num">PF</th><th class="num">VALID</th><th class="num">TEST</th><th>Вердикт</th></tr></thead>
+    <tbody>${rows.map(r=>`<tr><td><b>${r.strategy}</b></td><td class="muted" style="font-size:11px">${r.category||"—"}</td>
+      <td class="num">${money(r.capital_end)}</td><td class="num ${cls(r.total_return_pct)}">${pct(r.total_return_pct)}</td>
+      <td class="num ${cls(r.sharpe)}">${sh(r.sharpe)}</td><td class="num">${sh(r.sortino)}</td><td class="num">${sh(r.calmar)}</td>
+      <td class="num neg">${pct(r.max_dd_pct)}</td><td class="num">${r.n_trades??"—"}</td><td class="num">${r.profit_factor??"—"}</td>
+      <td class="num ${cls(r.valid_sharpe)}">${sh(r.valid_sharpe)}</td><td class="num ${cls(r.oos_sharpe)}">${sh(r.oos_sharpe)}</td>
+      <td><span class="tag ${r.verdict=='survived_3set'?'candidate':'buried'}">${r.verdict}</span></td></tr>`).join("")}</tbody></table>
+    <p class="note">${d.honest_conclusion||""}</p></div>
+  <div class="card" style="margin-top:14px"><h2>Кривые эквити (норм. 1.0, лог-масштаб) vs buy-hold</h2>
+    ${chartLines([...rows.map((r,i)=>({name:r.strategy,data:r.equity_curve||[],color:PALETTE[i%PALETTE.length]})),{name:"buy-hold",data:d.benchmark_curve||[],color:"#8b93a7"}],{log:true,x:d.x_dates,fmt:v=>v.toFixed(2)+"x"})}</div>
+  <div class="card" style="margin-top:14px"><h2>Просадки, %</h2>
+    ${chartLines(rows.map((r,i)=>({name:r.strategy,data:r.dd_curve||[],color:PALETTE[i%PALETTE.length]})),{x:d.x_dates,max:0,fmt:v=>v.toFixed(0)+"%"})}</div>
+  <div id="bt-monthly" class="card" style="margin-top:14px"><h2>Месячная доходность лучшей по OOS (${rows[0]?.strategy||"—"}), %</h2>
+    ${(()=>{const mm=monthlyMatrix(rows[0]?.equity_curve,d.x_dates);return mm?chartHeatmap(mm.years,mm.MN,mm.matrix,{fmt:v=>v.toFixed(0)}):'<span class="muted">нет данных</span>'})()}</div>`;
+}
+
+async function renderStrategies(v){
+  const d=await get("/api/strategies")||{};const lb=await get("/api/leaderboard")||{};
+  const cats=lb.categories_covered||{};
+  v.innerHTML=`<div class="card"><h2>Каталог стратегий (статусы из честного трёхчастного теста)</h2>
+    <table><thead><tr><th>ID</th><th>Имя</th><th>Класс</th><th class="num">TEST Sharpe</th><th>Статус</th><th>Рынок</th></tr></thead>
+    <tbody>${(d.catalog||[]).map(s=>`<tr><td><b>${s.id}</b></td><td>${s.name}</td><td class="muted">${s.class}</td>
+      <td class="num ${cls(s.test_sharpe)}">${sh(s.test_sharpe)}</td><td><span class="tag ${s.status}">${s.status}</span></td><td class="muted">${s.market}</td></tr>`).join("")}</tbody></table></div>
+  <div class="card" style="margin-top:14px"><h2>Покрытие категорий (все требуемые классы реализованы)</h2>
+    ${Object.entries(cats).map(([k,vv])=>`<div class="kv"><span>${k}</span><b>${vv}</b></div>`).join("")||'<span class="muted">—</span>'}</div>
+  <div class="card" style="margin-top:14px"><h2>Похоронённые семейства (честно, с причиной)</h2>
+    ${(d.buried_families||[]).map(b=>`<div class="note">✗ ${b}</div>`).join("")}</div>`;
+}
+
+async function renderPortfolios(v){
+  const d=await get("/api/portfolios")||{};const fwd=await get("/api/forward")||{};
+  const ps=d.portfolios||[];const presets=d.live_presets||{};
+  v.innerHTML=`<div class="card"><h2>Paper-портфели (research→paper, живые данные Gate.io, симуляция)</h2>
+    ${ps.length?`<table><thead><tr><th>Имя</th><th>Стратегия</th><th class="num">Старт</th><th class="num">Equity</th><th class="num">P&L</th><th>Режим</th></tr></thead>
+    <tbody>${ps.map(p=>`<tr><td><b>${p.name}</b></td><td class="muted">${p.strategy||"—"}</td><td class="num">${money(p.start_balance)}</td>
+      <td class="num">${money(p.equity)}</td><td class="num ${cls(p.pnl_pct)}">${pct(p.pnl_pct)}</td><td><span class="tag paper">${p.mode||"paper"}</span></td></tr>`).join("")}</tbody></table>`
+    :`<p class="muted">Явных portfolio-инстансов пока нет (0). Форвард-контур работает через Nautilus runtime + custom harness ниже. Создать: <code>PortfolioManager().create(...)</code> или <code>from_research(run_id)</code>.</p>`}
+    <p class="note">${d.note||""}</p></div>
+  <div class="card" style="margin-top:14px"><h2>Форвард-контуры (Nautilus-native)</h2>
+    ${chartBars((fwd.snapshot?.contours||[]).map((c,i)=>({name:c.name+" ("+c.engine+")",value:c.equity,color:PALETTE[i%PALETTE.length]})),{fmt:money})}
+    <p class="note">Суммарно ${money(fwd.snapshot?.total_equity)} · P&L ${pct(fwd.snapshot?.pnl_pct)} · снимков ${fwd.count||0}.</p></div>
+  <div class="card" style="margin-top:14px"><h2>Live-пресеты (готовы к запуску ПОСЛЕ ключей + явного действия)</h2>
+    ${Object.entries(presets).map(([k,p])=>`<div class="kv"><span>${p.name||k} <span class="muted">${p.strategy||""} · старт ${p.start_balance||"?"} USDT</span></span>
+      <b><span class="tag ${p.ready?'candidate':'buried'}">${p.ready?"ready":"заблокирован (нет ключей)"}</span></b></div>`).join("")||'<span class="muted">пресеты не заданы</span>'}
+    <p class="note">Реальные ордера невозможны без ключей Gate.io + многофакторного live-guard (см. Live Trading).</p></div>`;
+}
+
+async function renderLive(v){
+  const nr=LIVE.runtime||await get("/api/nautilus-runtime")||{};const ns=nr.status||nr||{};
+  const saf=await get("/api/safety")||{};const ping=await get("/api/gateio/ping")||{};const ctr=await get("/api/contours")||{};
+  const st=ns.status||ns;
+  v.innerHTML=`<div class="card"><h2>⚓ Nautilus runtime (ФАКТИЧЕСКИЙ TradingNode, SANDBOX)</h2>
     <div style="margin-bottom:8px"><span class="dot ${nr.service=='active'?'on':'off'}"></span>сервис ntlab-nautilus: <b>${nr.service||"—"}</b>
       <span class="tag research" style="margin-left:8px">NAUTILUS</span><span class="tag paper" style="margin-left:6px">SANDBOX</span></div>
-    <p class="note">Движок: ${ns.runtime_engine||"—"} · среда: ${ns.environment||"—"} · S11: <b>${ns.strategy_state||"—"}</b> ·
-      баров: ${ns.bars_seen??0} · данные: ${ns.data_connection||"—"} · reconnect: ${ns.reconnect_count??0}.</p>
-    <p class="note">Статус доказанности: <b>${ns.proof_status||"—"}</b>. Данные, ордера, позиции и portfolio проходят через Nautilus.</p></div>
-  <div class="card" style="margin-top:14px"><h2>Custom paper harness (НЕ Nautilus — независимый oracle)</h2>
-    <div style="margin-bottom:8px"><span class="dot ${pp.service=='active'?'on':'off'}"></span>сервис ntlab-paper: <b>${pp.service||"—"}</b>
-      <span class="tag" style="margin-left:8px;background:var(--chip);color:var(--ink2)">CUSTOM HARNESS</span></div>
-    <p class="note">Прямой Gate.io data + PaperExecution + функция сигнала (НЕ TradingNode). Тиков: ${ps.ticks??0} · watchlist ${ps.watchlist||0} · исполнений ${ps.fills||0}. Тестовый oracle для сверки сигнала.</p></div>
-  <div class="card" style="margin-top:14px"><h2>OctoBot (legacy S4/S8 — сохранённый контур, НЕ валидирует S11)</h2>
-    <p class="note">Стоимость $${(f.total||0).toLocaleString()} · P&L ${pct(f.pnl_pct)} · снимков ${f.snapshots||0}.
-    Реальная роль: рабочий контур S4/S8, регрессионное сравнение инфраструктуры, откат. S11 в OctoBot НЕ было.</p></div>`;
+    <div class="grid g4">
+      ${tile(st.strategy_state||st.strategy||"—","S11 состояние")}
+      ${tile(st.bars_seen??0,"Баров получено")}
+      ${tile(st.orders_submitted??0,"Ордеров")}
+      ${tile(st.reconnect_count??0,"Reconnect")}
+    </div>
+    <p class="note">Движок: ${st.runtime_engine||"—"} · среда: ${st.environment||"—"} · данные: ${st.data_connection||"—"} · gaps: ${st.gaps_detected??0} · статус доказанности: <b>${st.proof_status||"—"}</b>.</p></div>
+  <div class="card" style="margin-top:14px"><h2>🔒 Live-guard / Emergency stop (многофакторная блокировка)</h2>
+    <div style="font-size:15px;margin-bottom:8px"><span class="dot ${saf.live_allowed?'off':'on'}"></span>
+      Live: <b class="${saf.live_allowed?'neg':'pos'}">${saf.live_allowed?'РАЗРЕШЁН':'ЗАБЛОКИРОВАН'}</b></div>
+    ${Object.entries(saf.factors||{}).map(([k,ok])=>`<div class="kv"><span>${k}</span><b class="${ok?'pos':'mut'}">${ok?"✓":"✗ нет"}</b></div>`).join("")}
+    <p class="note">${saf.reason||""}. Emergency stop: ${saf.emergency_stop||"сброс любого фактора → боевой путь недоступен"}.</p></div>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card"><h2>Gate.io public data</h2>
+      <div><span class="dot ${ping.public_data?.ok?'on':'off'}"></span>ping: <b>${ping.public_data?.ok?"ok":"нет"}</b></div>
+      <p class="note">ключи: ${ping.keys_ready?"есть":"НЕТ (private/live заблокированы)"}. WS — основной транспорт market-data, REST — резерв.</p></div>
+    <div class="card"><h2>Контуры (карта)</h2>
+      ${(ctr.contours||[]).map(c=>`<div class="kv"><span>${c.name||c.id||""} <span class="muted">${c.engine||c.type||""}</span></span><b class="muted">${c.validates||c.role||""}</b></div>`).join("")||'<span class="muted">—</span>'}</div>
+  </div>`;
 }
 
 async function renderAdaptive(v){
-  const d=await get("/api/adaptive")||{};
+  const d=await get("/api/adaptive")||{};const lc=await get("/api/adaptive-lifecycle")||{};
+  const life=lc.lifecycle||{};const champ=life.champion;const chal=life.challengers||[];
+  const STAGES=life.stages||["shadow","paper_canary","live_canary","champion"];
+  const st=d.state||{};
   v.innerHTML=`<div class="card"><h2>Adaptive AI Strategy</h2>
-    <div style="margin-bottom:10px"><span class="dot ${d.llm_ready?'on':'na'}"></span>
-    LLM-провайдер: <b>${d.provider||"не настроен"}</b> ${d.llm_ready?"":"(нет ключа — работает в backtest/shadow без применения)"}</div>
-    <p class="note">${d.note||""}</p>
-    <p class="note">Цикл: наблюдение → диагностика → рекомендация LLM → автовалидация бэктестом → выбор конфигурации → shadow/paper → ограниченный live. LLM — консультант, решение принимает платформа по воспроизводимым тестам.</p>
-    <p class="note">Оценка пользы AI проводится сравнением 5 вариантов (статик / классическая адаптация / LLM / мульти-LLM / LLM-без-применения). Результат не выдаётся за доказанное улучшение до подтверждения.</p></div>`;
+    <div style="margin-bottom:10px"><span class="dot ${d.llm_ready?'on':'na'}"></span>LLM-провайдер: <b>${d.provider||"не настроен"}</b> ${d.llm_ready?"":"(нет ключа — работает в backtest/shadow через mock/deterministic, без применения)"}</div>
+    <div class="grid g4">
+      ${tile(st.regime||"—","Режим (посл. консультация)")}
+      ${tile(st.decision||"—","Решение LLM")}
+      ${tile(st.platform_decision||"—","Решение платформы")}
+      ${tile(st.consultations_total??0,"Консультаций")}
+    </div>
+    <p class="note">${d.note||""}</p></div>
+  <div class="card" style="margin-top:14px"><h2>Champion / Challenger — стадии продвижения</h2>
+    <div class="kv"><span>Текущий champion</span><b>${champ?champ.version+" · "+JSON.stringify(champ.params):"—"}</b></div>
+    ${chal.length?chal.map(c=>`<div style="margin-top:10px"><div class="muted" style="font-size:12px">${c.version} · источник ${c.source}</div>
+      <div class="stage">${STAGES.map(s=>`<div class="${STAGES.indexOf(c.stage)>=STAGES.indexOf(s)?'act':''}">${s}</div>`).join("")}</div></div>`).join("")
+      :'<p class="muted">активных challenger нет</p>'}
+    <p class="note">LLM предлагает → автовалидация (трёхчастный + neighbor-sensitivity + Monte Carlo CI) → продвижение по стадиям строго по одной → rollback к предыдущему стабильному. Всего версий: ${life.total_versions||0}.</p></div>
+  <div class="card" style="margin-top:14px"><h2>Пайплайн адаптации</h2>
+    <div class="stage"><div class="act">наблюдение</div><div class="act">диагностика</div><div class="act">рекомендация LLM</div><div class="act">автовалидация</div><div>shadow</div><div>paper canary</div><div>live canary</div></div>
+    <p class="note">Оценка пользы AI — сравнением: статик / классическая алго-адаптация / LLM / mock. Результат не выдаётся за доказанное улучшение до подтверждения. Учёт стоимости API включён (estimate_cost). Провайдеры: Claude / OpenAI / mock / deterministic.</p></div>`;
 }
 
 async function renderLake(v){
   const d=await get("/api/lake")||{};
-  const tf=d.by_tf||{};
-  v.innerHTML=`<div class="grid g4">
-    ${tile((d.total_candles/1e6||0).toFixed(1)+"M","Свечей")}
-    ${tile(d.universe||"—","Монет")}
-    ${tile(d.funding_coins||"—","Монет с funding")}
-    ${tile(d.problem_count??"—","Проблемных рядов",d.problem_count?"neg":"pos")}
-  </div>
-  <div class="card" style="margin-top:14px"><h2>Покрытие по таймфреймам</h2>
-    <table><thead><tr><th>ТФ</th><th class="num">Рядов</th><th class="num">Чистых</th><th class="num">С проблемами</th><th class="num">Свечей</th></tr></thead>
-    <tbody>${Object.entries(tf).map(([k,x])=>`<tr><td>${k}</td><td class="num">${x.series}</td><td class="num pos">${x.clean}</td><td class="num ${x.dirty?'neg':'mut'}">${x.dirty}</td><td class="num">${(x.candles/1e6).toFixed(1)}M</td></tr>`).join("")}</tbody></table></div>
+  const byTf=d.by_tf||{};const tfs=Object.keys(byTf);
+  v.innerHTML=`<div class="card"><h2>Озеро данных — аудит качества</h2>
+    <div class="grid g4">
+      ${tile((d.universe||"—"),"Монет")}
+      ${tile(((d.total_candles||0)/1e6).toFixed(1)+"M","Свечей")}
+      ${tile(d.funding_coins??"—","Монет с funding")}
+      ${tile(d.problem_count??0,"Проблемных рядов",(d.problem_count?"neg":"pos"))}
+    </div>
+    <p class="note">Биржа ${d.exchange||"—"} · таймфреймы ${(d.timeframes||[]).join(", ")} · версия датасета ${d.dataset_version||"—"} · аудит ${d.generated?new Date(d.generated).toLocaleDateString("ru-RU"):"—"}.</p></div>
   <div class="grid g2" style="margin-top:14px">
-    <div class="card"><h2>Типы данных</h2>
-      ${Object.entries(d.data_types||{}).map(([k,x])=>`<div style="padding:3px 0"><span class="dot ${x.present?'on':'off'}"></span>${k} <span class="muted">${x.note||""}</span></div>`).join("")}</div>
-    <div class="card"><h2>Пригодность по категориям стратегий</h2>
-      ${Object.entries(d.suitability_by_category||{}).map(([k,x])=>`<div class="note"><span class="${String(x).startsWith('OK')?'pos':'neg'}">${String(x).startsWith('OK')?'✓':'✗'}</span> ${k}: ${x}</div>`).join("")}</div>
+    <div class="card"><h2>Типы данных</h2>${Object.entries(d.data_types||{}).map(([k,x])=>`<div class="kv"><span><span class="dot ${x.present?'on':'off'}"></span>${k}</span><b class="muted">${x.note||""}</b></div>`).join("")||'<span class="muted">—</span>'}</div>
+    <div class="card"><h2>Пригодность по категориям стратегий</h2>${Object.entries(d.suitability_by_category||{}).map(([k,x])=>`<div class="note"><span class="${String(x).startsWith('OK')?'pos':'neg'}">${String(x).startsWith('OK')?'✓':'✗'}</span> ${k}: ${x}</div>`).join("")||'<span class="muted">—</span>'}</div>
   </div>
-  <div class="card" style="margin-top:14px"><h2>Версия данных + ParquetDataCatalog</h2>
-    <span class="pill">dataset ${d.dataset_version||"—"}</span><span class="pill">catalog ${d.parquet_catalog?.materialized?"материализован":"нет"}</span>
-    <p class="note">${d.parquet_catalog?.note||""}</p></div>
-  <div class="card" style="margin-top:14px"><h2>Известные искажения (честно)</h2>
-    ${Object.entries(d.known_biases||{}).map(([k,x])=>`<div class="note"><b>${k}:</b> ${x}</div>`).join("")}</div>`;
+  <div class="card" style="margin-top:14px"><h2>Покрытие по таймфреймам (свечей)</h2>
+    ${tfs.length?chartBars(tfs.map((t,i)=>({name:t,value:(byTf[t].candles||byTf[t].total||byTf[t]||0),color:PALETTE[i%PALETTE.length]})),{fmt:x=>(x/1e6).toFixed(2)+"M"}):'<span class="muted">нет разбивки</span>'}
+    <p class="note">ParquetDataCatalog материализован (${d.parquet_catalog?.materialized?"да":"нет"}) · версионировано по data_sha · DuckDB реестр экспериментов.</p></div>`;
 }
 
 async function renderSystem(v){
-  const d=await get("/api/system")||{},h=await get("/api/health")||{};
-  v.innerHTML=`<div class="grid g3">
-    ${tile((d.disk_free_gb||"—")+" GB","Диск свободно")}
-    ${tile(Math.round((h.uptime_s||0)/60)+" мин","Uptime API")}
-    ${tile(d.git_commit||"—","Git commit")}
-  </div>
-  <div class="card" style="margin-top:14px"><h2>Сервисы</h2>
-    ${Object.entries(d.services||{}).map(([k,s])=>`<div style="padding:4px 0"><span class="dot ${s=='active'?'on':'off'}"></span>${k} <span class="muted">${s}</span></div>`).join("")}
-    <p class="note">Развёртывание: нативно (systemd + venv), без Docker. См. ADR-001.</p></div>`;
+  const d=await get("/api/system")||{};const reg=await get("/api/regression")||{};
+  v.innerHTML=`<div class="card"><h2>Сервисы</h2>
+    ${Object.entries(d.services||{}).map(([k,s])=>`<div class="kv"><span><span class="dot ${s=='active'?'on':'off'}"></span>${k}</span><b>${s}</b></div>`).join("")}
+    <p class="note">git ${d.git_commit||"—"} · диск свободно ${d.disk_free_gb||"—"} GB · venv ${d.nautilus_venv?"ok":"нет"} · uptime API ${d.uptime_s||0}s.</p></div>
+  <div class="card" style="margin-top:14px"><h2>Развёртывание (ADR-001: нативно, без Docker)</h2>
+    <p class="note">systemd + venv + нативный PostgreSQL 17. Единый CLI <code>ntlab</code>. Дашборд — self-contained (FastAPI + inline SVG, без Node-сборки). Сервисы: ntlab-api, ntlab-paper, ntlab-nautilus, ntlab-forward.timer.</p></div>
+  <div class="card" style="margin-top:14px"><h2>P9: регрессия OctoBot → Nautilus</h2>
+    <div style="font-size:15px;margin-bottom:8px">Вердикт: <b class="${reg.verdict=='GO'?'pos':'neg'}">${reg.verdict||"—"}</b></div>
+    ${(reg.checks||[]).map(c=>`<div class="kv"><span><span class="dot ${c.ok?'on':'off'}"></span>${c.component}</span><b class="${c.ok?'pos':'neg'}">${c.status}</b></div>`).join("")}
+    <p class="note">${reg.recommendation||""}</p></div>`;
 }
-$("#hdr-uptime").textContent="";
+
 boot();
 </script>
 </body>

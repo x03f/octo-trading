@@ -12,7 +12,8 @@ client = TestClient(app)
 ENDPOINTS = ["/api/health", "/api/overview", "/api/lake", "/api/strategies",
              "/api/experiments", "/api/leaderboard", "/api/backtests", "/api/paper",
              "/api/nautilus-runtime", "/api/contours", "/api/portfolio", "/api/portfolios",
-             "/api/adaptive", "/api/adaptive-lifecycle", "/api/system"]
+             "/api/adaptive", "/api/adaptive-lifecycle", "/api/system",
+             "/api/forward", "/api/safety", "/api/regression"]
 
 
 @pytest.mark.parametrize("ep", ENDPOINTS)
