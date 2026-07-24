@@ -223,6 +223,15 @@ async function renderLake(v){
   <div class="card" style="margin-top:14px"><h2>Покрытие по таймфреймам</h2>
     <table><thead><tr><th>ТФ</th><th class="num">Рядов</th><th class="num">Чистых</th><th class="num">С проблемами</th><th class="num">Свечей</th></tr></thead>
     <tbody>${Object.entries(tf).map(([k,x])=>`<tr><td>${k}</td><td class="num">${x.series}</td><td class="num pos">${x.clean}</td><td class="num ${x.dirty?'neg':'mut'}">${x.dirty}</td><td class="num">${(x.candles/1e6).toFixed(1)}M</td></tr>`).join("")}</tbody></table></div>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card"><h2>Типы данных</h2>
+      ${Object.entries(d.data_types||{}).map(([k,x])=>`<div style="padding:3px 0"><span class="dot ${x.present?'on':'off'}"></span>${k} <span class="muted">${x.note||""}</span></div>`).join("")}</div>
+    <div class="card"><h2>Пригодность по категориям стратегий</h2>
+      ${Object.entries(d.suitability_by_category||{}).map(([k,x])=>`<div class="note"><span class="${String(x).startsWith('OK')?'pos':'neg'}">${String(x).startsWith('OK')?'✓':'✗'}</span> ${k}: ${x}</div>`).join("")}</div>
+  </div>
+  <div class="card" style="margin-top:14px"><h2>Версия данных + ParquetDataCatalog</h2>
+    <span class="pill">dataset ${d.dataset_version||"—"}</span><span class="pill">catalog ${d.parquet_catalog?.materialized?"материализован":"нет"}</span>
+    <p class="note">${d.parquet_catalog?.note||""}</p></div>
   <div class="card" style="margin-top:14px"><h2>Известные искажения (честно)</h2>
     ${Object.entries(d.known_biases||{}).map(([k,x])=>`<div class="note"><b>${k}:</b> ${x}</div>`).join("")}</div>`;
 }
