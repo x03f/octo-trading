@@ -122,15 +122,37 @@ def _forward_pnl():
 
 @app.get("/api/paper")
 def paper():
-    """Статус непрерывного paper-сервиса S11 (симуляция на живых данных Gate.io)."""
+    """Статус CUSTOM PAPER HARNESS S11 (НЕ Nautilus paper: прямой Gate.io data + PaperExecution +
+    функция сигнала, без TradingNode/Strategy lifecycle). Независимый тестовый oracle."""
     st = _load("paper_s11_status.json", None)
     try:
         active = subprocess.run(["systemctl", "is-active", "ntlab-paper"],
                                 capture_output=True, text=True, timeout=5).stdout.strip()
     except Exception:
         active = "unknown"
-    return {"service": active, "simulation": True, "status": st or {"available": False},
-            "note": "Реальные ордера невозможны без явного LIVE-переключателя и ключей."}
+    return {"contour": "custom_paper_harness", "is_nautilus": False, "service": active,
+            "simulation": True, "status": st or {"available": False},
+            "note": "CUSTOM HARNESS (не Nautilus paper). Реальные ордера невозможны без явного LIVE-режима+ключей."}
+
+
+@app.get("/api/nautilus-runtime")
+def nautilus_runtime():
+    """Статус ФАКТИЧЕСКОГО Nautilus TradingNode (sandbox/simulated execution)."""
+    st = _load("nautilus_runtime_status.json", None)
+    try:
+        active = subprocess.run(["systemctl", "is-active", "ntlab-nautilus"],
+                                capture_output=True, text=True, timeout=5).stdout.strip()
+    except Exception:
+        active = "unknown"
+    return {"contour": "nautilus_runtime", "is_nautilus": True, "service": active,
+            "simulation": True, "status": st or {"available": False}}
+
+
+@app.get("/api/contours")
+def contours():
+    """Явная карта контуров: какой Nautilus, какой legacy/custom, что валидирует."""
+    from ntlab.core.status import CONTOURS, s11_proof_status
+    return {"contours": CONTOURS, "s11_proof": s11_proof_status()}
 
 
 @app.get("/api/portfolio")

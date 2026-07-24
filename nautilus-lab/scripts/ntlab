@@ -27,6 +27,11 @@ case "$cmd" in
   paper-down) systemctl stop ntlab-paper; echo "ntlab-paper остановлен";;
   paper-logs) tail -n "${1:-30}" "$LAB/var/paper_s11.log" 2>/dev/null || echo "лог пуст";;
   compare-s11) cd /opt/octobot/strategy-lab && /opt/octobot/bot/venv/bin/python nautilus-lab/scripts/compare_s11.py;;
+  nautilus-status) curl -s -m 8 http://127.0.0.1:5020/api/nautilus-runtime | $VENV/python -m json.tool;;
+  nautilus-logs)   journalctl -u ntlab-nautilus -n "${1:-40}" --no-pager;;
+  nautilus-restart) systemctl restart ntlab-nautilus; echo "ntlab-nautilus перезапущен (TradingNode SANDBOX)";;
+  lifecycle-proof) $VENV/python "$LAB/scripts/run_sandbox_diag.py" "${1:-180}";;
+  contours) curl -s -m 8 http://127.0.0.1:5020/api/contours | $VENV/python -m json.tool;;
   test)    cd "$LAB" && $VENV/python -m pytest tests/ -q 2>/dev/null || echo "pytest не установлен — запусти tests/*.py напрямую";;
   help|*)
     cat <<EOF

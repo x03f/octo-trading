@@ -1,4 +1,8 @@
-# Инкремент 2: Gate.io execution adapter + непрерывный paper S11
+# Инкремент 2: Gate.io execution adapter + CUSTOM PAPER HARNESS S11
+
+> ⚠️ ТЕРМИНОЛОГИЯ ИСПРАВЛЕНА: `ntlab-paper` — это CUSTOM PAPER HARNESS (прямой Gate.io data +
+> собственный PaperExecution + функция сигнала), НЕ Nautilus paper. Настоящий Nautilus runtime —
+> отдельный сервис `ntlab-nautilus` (TradingNode). См. INCREMENT-3.
 
 24.07.2026. Всё проверено (`ntlab test` → 27/27, сервисы active). Реальные ордера НЕВОЗМОЖНЫ.
 
@@ -10,14 +14,15 @@
   Rate limiter + экспоненциальный backoff на 429. Синхронизация времени с биржей.
   **⚠️ Мутирующие вызовы (place/cancel) кидают `LiveDisabledError` без `live_enabled=True`.**
 - `reconcile.py` — сверка локального состояния с биржей после рестарта (диагностика без мутаций).
-- Gate.io СПОТОВОГО testnet НЕТ (проверено: api-testnet не резолвится, fx-api-testnet — фьючерсы).
+- Gate.io СПОТОВОГО публичного testnet нет, НО ФЬЮЧЕРСНЫЙ TestNet ЕСТЬ и работает
+  (api-testnet.gateapi.io — контракты/стакан/свечи/funding 200). Поправка к прежнему выводу.
 
 ### Paper execution — симуляция на ЖИВЫХ данных Gate.io (не биржа)
 - `paper.py` `PaperExecution` (SIMULATION=True) — заполнение по реальному стакану Gate.io с
   проскальзыванием (обход глубины), комиссии taker/maker, min_notional/precision из инструмента,
   частичные заполнения при тонком стакане.
 
-### Непрерывный paper S11 — systemd `ntlab-paper` (Restart=always)
+### Custom paper harness S11 — systemd `ntlab-paper` (Restart=always) — НЕ Nautilus
 - `s11_signal.py` — онлайн-сигнал S11, **100% parity с движком** (2222/2222 бар-позиций).
   Это и есть «один код стратегии»: backtest и paper/live решают идентично.
 - `service.py` `S11PaperService` — тянет живые дневные свечи Gate.io, гоняет S11, исполняет
@@ -45,8 +50,10 @@ S11 в OctoBot НИКОГДА не было (там S8/S4) → «OctoBot S11 vs 
 + пер-монетный кост; paper — обход стакана Gate.io + taker), не в сигнале. Отдельно: OctoBot S4 vs
 Nautilus S4 — 100% совпадение (nautilus_spike/donchian_nautilus.py).
 
-## OctoBot НЕ тронут
-10 инстансов работают, decommission НЕ запускался. Остаётся контролем.
+## OctoBot — реальная роль (исправлено)
+10 инстансов работают, decommission НЕ запускался.
+**OctoBot НЕ валидирует S11** — S11 в OctoBot никогда не было (там S4/S8). Реальная функция OctoBot:
+сохранённый рабочий контур S4/S8, регрессионное сравнение общей инфраструктуры, возможность отката.
 
 ## Что подготовлено, но не боевое
 - `GateioExecution` боевой путь — за `live_enabled=True` + ключами (не заводились).
@@ -54,8 +61,9 @@ Nautilus S4 — 100% совпадение (nautilus_spike/donchian_nautilus.py).
   Gate.io LiveDataClient — следующий шаг; сейчас paper-сервис использует прямой Gate.io data +
   PaperExecution (тот же сигнал-код, что пойдёт в TradingNode).
 
-## Условия перед отключением OctoBot (см. также decommission_octobot.sh)
-1. Nautilus paper S11 отработал значимый период на РЕАЛЬНЫХ свежих листингах (не только replay).
-2. Сравнение результатов Nautilus-paper vs OctoBot-форвард показало согласованность.
-3. Reconciliation после нескольких рестартов стабильно in-sync.
-Только после этого — `bash decommission_octobot.sh --i-understand`.
+## Условия перед отключением OctoBot (ОБЪЕКТИВНЫЕ, не зависящие от невозможного сравнения S11)
+1. Nautilus runtime (TradingNode) S11 отработал значимый период и наблюдал ≥1 реальный forward-сигнал.
+2. Reconciliation после нескольких рестартов стабильно in-sync.
+3. Инфраструктурный регресс: ключевые метрики/пайплайн нового контура не хуже старого.
+4. Явное ручное решение владельца.
+НЕ требуется «сравнение OctoBot S11» — его не существует. Скрипт decommission_octobot.sh защищён.

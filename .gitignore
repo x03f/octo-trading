@@ -31,3 +31,4 @@ nautilus-lab/var/
 nautilus-lab/**/__pycache__/
 nautilus-lab/web/data/adaptive_state.json
 nautilus-lab/web/data/paper_s11_status.json
+nautilus-lab/web/data/nautilus_runtime_status.json

@@ -149,20 +149,22 @@ async function renderBacktests(v){
 
 async function renderPortfolio(v){
   const d=await get("/api/portfolio")||{},f=d.forward||{};
+  const nr=await get("/api/nautilus-runtime")||{},ns=nr.status||{};
   const pp=await get("/api/paper")||{},ps=pp.status||{};
-  v.innerHTML=`<div class="grid g3">
-    ${tile("$"+((ps.equity)||0).toLocaleString(),"Nautilus paper S11")}
-    ${tile(pct(ps.pnl_pct),"S11 paper P&L",cls(ps.pnl_pct))}
-    ${tile(ps.ticks??"—","Тиков S11")}
-  </div>
-  <div class="card" style="margin-top:14px"><h2>Nautilus paper S11 (симуляция на живых данных Gate.io)</h2>
+  v.innerHTML=`
+  <div class="card"><h2>⚓ Nautilus runtime (ФАКТИЧЕСКИЙ TradingNode, SANDBOX)</h2>
+    <div style="margin-bottom:8px"><span class="dot ${nr.service=='active'?'on':'off'}"></span>сервис ntlab-nautilus: <b>${nr.service||"—"}</b>
+      <span class="tag research" style="margin-left:8px">NAUTILUS</span><span class="tag paper" style="margin-left:6px">SANDBOX</span></div>
+    <p class="note">Движок: ${ns.runtime_engine||"—"} · среда: ${ns.environment||"—"} · S11: <b>${ns.strategy_state||"—"}</b> ·
+      баров: ${ns.bars_seen??0} · данные: ${ns.data_connection||"—"} · reconnect: ${ns.reconnect_count??0}.</p>
+    <p class="note">Статус доказанности: <b>${ns.proof_status||"—"}</b>. Данные, ордера, позиции и portfolio проходят через Nautilus.</p></div>
+  <div class="card" style="margin-top:14px"><h2>Custom paper harness (НЕ Nautilus — независимый oracle)</h2>
     <div style="margin-bottom:8px"><span class="dot ${pp.service=='active'?'on':'off'}"></span>сервис ntlab-paper: <b>${pp.service||"—"}</b>
-      <span class="tag paper" style="margin-left:8px">SIMULATION</span></div>
-    <p class="note">Watchlist: ${ps.watchlist||0} пар · открытых позиций: ${Object.keys(ps.open_positions||{}).length} · исполнений: ${ps.fills||0} · просадка: ${pct(ps.max_drawdown_pct)}.</p>
-    <p class="note">S11 действует только на СВЕЖИХ листингах; устоявшиеся монеты пропускаются. ${pp.note||""}</p></div>
-  <div class="card" style="margin-top:14px"><h2>Форвард-контур OctoBot (контрольный, работает параллельно)</h2>
-    <p class="note">Стоимость $${(f.total||0).toLocaleString()} · P&L ${pct(f.pnl_pct)} · снимков ${f.snapshots||0} · ${f.as_of||"—"}.
-    Остаётся контролем до накопления Nautilus-paper периода и сравнения результатов.</p></div>`;
+      <span class="tag" style="margin-left:8px;background:var(--chip);color:var(--ink2)">CUSTOM HARNESS</span></div>
+    <p class="note">Прямой Gate.io data + PaperExecution + функция сигнала (НЕ TradingNode). Тиков: ${ps.ticks??0} · watchlist ${ps.watchlist||0} · исполнений ${ps.fills||0}. Тестовый oracle для сверки сигнала.</p></div>
+  <div class="card" style="margin-top:14px"><h2>OctoBot (legacy S4/S8 — сохранённый контур, НЕ валидирует S11)</h2>
+    <p class="note">Стоимость $${(f.total||0).toLocaleString()} · P&L ${pct(f.pnl_pct)} · снимков ${f.snapshots||0}.
+    Реальная роль: рабочий контур S4/S8, регрессионное сравнение инфраструктуры, откат. S11 в OctoBot НЕ было.</p></div>`;
 }
 
 async function renderAdaptive(v){

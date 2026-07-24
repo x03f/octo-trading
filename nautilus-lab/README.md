@@ -23,10 +23,9 @@
 ### 🔵 Спроектировано, не развёрнуто (следующие инкременты)
 - **Gate.io execution adapter** (private: balances/orders/fills/reconciliation) — за ключами, план в
   `docs/MIGRATION-PLAN.md` (фазы A/B/C). Сейчас — только data-половина.
-- **Непрерывный Nautilus paper-контур** — заменит OctoBot forward-тест. `run_paper.py` (TradingNode
+- **Непрерывный Nautilus runtime (TradingNode)** — заменит OctoBot forward-тест. `run_paper.py` (TradingNode
   environment='sandbox' + SandboxExecutionClient на живых данных Gate.io). Пока форвард идёт на OctoBot.
-- **Удаление OctoBot** — `scripts/decommission_octobot.sh` ГОТОВ, но ЗАЩИЩЁН: не запускать, пока
-  Nautilus paper не заменит форвард (иначе теряем валидацию S11). Осознанный запуск: `--i-understand`.
+- **Удаление OctoBot** — `scripts/decommission_octobot.sh` ГОТОВ, но ЗАЩИЩЁН: не запускать, пока Nautilus runtime не заменит форвард (OctoBot хранит S4/S8 и даёт откат; S11 он НЕ валидирует). Осознанный запуск: `--i-understand`.
 - **Полный Next.js/shadcn фронт** — сейчас прагматичный SPA (реальные данные, тёмная тема). Миграция
   на Next.js — отдельный фронт-инкремент.
 - **PostgreSQL-реестр экспериментов** — сейчас файловый (DuckDB); PG-схема — когда объём вырастет.
