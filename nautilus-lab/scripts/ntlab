@@ -38,6 +38,44 @@ case "$cmd" in
   leaderboard) cd /opt/octobot/strategy-lab && /opt/octobot/bot/venv/bin/python nautilus-lab/scripts/run_leaderboard.py "${1:-1d}";;
   contours) curl -s -m 8 http://127.0.0.1:5020/api/contours | $VENV/python -m json.tool;;
   test)    cd "$LAB" && $VENV/python -m pytest tests/ -q 2>/dev/null || echo "pytest не установлен — запусти tests/*.py напрямую";;
+  test-categories) $VENV/python "$LAB/scripts/run_tests.py" "$@";;
+  install)
+    echo "=== установка/включение всех сервисов (нативно, systemd) ==="
+    systemctl daemon-reload
+    for s in ntlab-api ntlab-paper ntlab-nautilus; do systemctl enable --now "$s" 2>/dev/null && echo "  enabled+started $s"; done
+    systemctl enable --now ntlab-forward.timer 2>/dev/null && echo "  enabled ntlab-forward.timer"
+    echo "проверка:"; "$0" status
+    ;;
+  update)
+    echo "=== обновление: git pull + зависимости + рестарт + тесты ==="
+    git -C /opt/octobot/strategy-lab pull --ff-only || echo "  git pull пропущен"
+    $VENV/pip install -q -r "$LAB/requirements.txt" 2>/dev/null || echo "  requirements без изменений"
+    for s in ntlab-api ntlab-paper ntlab-nautilus; do systemctl restart "$s" 2>/dev/null && echo "  restarted $s"; done
+    cd "$LAB" && $VENV/python -m pytest tests/ -q 2>&1 | tail -1
+    ;;
+  stop-all)
+    for s in ntlab-api ntlab-paper ntlab-nautilus ntlab-forward.timer; do systemctl stop "$s" 2>/dev/null && echo "  stopped $s"; done
+    ;;
+  diagnose)
+    echo "=== ДИАГНОСТИКА ==="
+    echo "-- сервисы --"; for s in ntlab-api ntlab-paper ntlab-nautilus ntlab-forward.timer postgresql@17-main; do printf "  %-22s %s\n" "$s" "$(systemctl is-active $s 2>/dev/null)"; done
+    echo "-- health --"; curl -s -m5 http://127.0.0.1:5020/api/health | $VENV/python -m json.tool 2>/dev/null || echo "  API не отвечает"
+    echo "-- эндпойнты --"; for e in overview leaderboard experiments portfolios forward safety regression; do printf "  /api/%-14s %s\n" "$e" "$(curl -s -m5 -o /dev/null -w '%{http_code}' http://127.0.0.1:5020/api/$e)"; done
+    echo "-- регрессия OctoBot→Nautilus --"; $VENV/python "$LAB/scripts/regression_octobot_vs_nautilus.py" 2>/dev/null | grep -i вердикт
+    echo "-- диск --"; df -h / | tail -1
+    ;;
+  recover)
+    echo "=== ВОССТАНОВЛЕНИЕ после сбоя ==="
+    systemctl daemon-reload
+    for s in ntlab-api ntlab-paper ntlab-nautilus; do systemctl restart "$s" 2>/dev/null && echo "  restarted $s"; done
+    systemctl start ntlab-forward.timer 2>/dev/null
+    $VENV/python "$LAB/ntlab/paper/forward.py" 2>/dev/null && echo "  форвард-снимок обновлён"
+    sleep 2; "$0" diagnose
+    ;;
+  decommission-octobot)
+    echo "Снос OctoBot защищён. Условия (regression GO + архив + git-тег) проверяются скриптом."
+    bash "$LAB/scripts/decommission_octobot.sh" "$@"
+    ;;
   help|*)
     cat <<EOF
 ntlab — Nautilus Trading Lab
@@ -48,7 +86,13 @@ ntlab — Nautilus Trading Lab
   ntlab backtest [набор]     Nautilus-бэктест (majors|niche|aggr)
   ntlab gateio-ping          проверка публичного API Gate.io
   ntlab adaptive-test        тест адаптивного цикла (без ключей)
-  ntlab test                 прогон тестов
+  ntlab test | test-categories  прогон тестов (по категориям)
+  ntlab install              включить+запустить все сервисы (нативно)
+  ntlab update               git pull + зависимости + рестарт + тесты
+  ntlab diagnose             полная диагностика (сервисы/health/эндпойнты/регрессия/диск)
+  ntlab recover              восстановление после сбоя (рестарт+форвард-снимок+диагностика)
+  ntlab stop-all             остановить все сервисы
+  ntlab decommission-octobot вывести OctoBot (защищено, после regression GO)
 Дашборд: http://127.0.0.1:5020  (за Caddy+Authelia — как остальные панели)
 EOF
     ;;
