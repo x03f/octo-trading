@@ -1,12 +1,13 @@
 """Мульти-портфели paper на живых данных Gate.io. Несколько портфелей, реальные комиссии, slippage.
 
 Каждый портфель: id, стартовый баланс, стратегия, инструменты, состояние, восстановление после
-рестарта. Перевод research->paper. Исполнение — PaperExecution (симуляция на живом стакане Gate.io).
-Реальные ордера невозможны без ключей и явного live-preset.
+рестарта. Перевод research->paper. ОСНОВНОЕ исполнение — Nautilus (run_nautilus_portfolio: Strategy →
+order lifecycle → SimulatedExchange → Nautilus Portfolio). Custom PaperExecution — только тестовый
+oracle (ntlab-paper + unit). Реальные ордера невозможны без ключей и явного live-preset.
 """
 import json, time
 from pathlib import Path
-from ..adapters.gateio.paper import PaperExecution
+from ..nautilus.paper_engine import run_isolated
 
 STORE = Path("/opt/octobot/nautilus-lab/var/portfolios")
 STATUS = Path("/opt/octobot/nautilus-lab/web/data/portfolios.json")
@@ -14,41 +15,59 @@ STORE.mkdir(parents=True, exist_ok=True)
 
 
 class Portfolio:
+    """Paper-портфель. ОСНОВНОЙ контур исполнения — Nautilus (run_nautilus_portfolio). Прогон ленивый
+    и кэшируется (self.result). Поддерживает pause/resume и восстановление после рестарта."""
     def __init__(self, pid, name, start_balance, strategy, instruments, mode="paper"):
-        self.pid = pid; self.name = name; self.start_balance = start_balance
+        self.pid = pid; self.name = name; self.start_balance = float(start_balance)
         self.strategy = strategy; self.instruments = instruments; self.mode = mode
         self.created = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-        self.exec = PaperExecution(starting_balances={"USDT": start_balance})
-        self.orders = []
-        self.state = {"positions": {}, "realized_pnl": 0.0}
+        self.paused = False
+        self.result = None            # кэш Nautilus-прогона (equity/fills/positions/pnl)
 
     def path(self):
         return STORE / f"{self.pid}.json"
 
+    def run(self):
+        """Прогнать портфель через Nautilus (BacktestEngine). Не запускается на паузе."""
+        if self.paused:
+            return {"skipped": "paused"}
+        self.result = run_isolated(self.strategy, self.instruments, self.start_balance)
+        self.save()
+        return self.result
+
+    def pause(self):
+        self.paused = True; self.save(); return {"pid": self.pid, "paused": True}
+
+    def resume(self):
+        self.paused = False; self.save(); return {"pid": self.pid, "paused": False}
+
     def save(self):
         json.dump({"pid": self.pid, "name": self.name, "start_balance": self.start_balance,
                    "strategy": self.strategy, "instruments": self.instruments, "mode": self.mode,
-                   "created": self.created, "balances": self.exec.balances,
-                   "state": self.state, "n_orders": len(self.orders)},
+                   "created": self.created, "paused": self.paused, "result": self.result},
                   open(self.path(), "w"), ensure_ascii=False, indent=1)
 
     @classmethod
     def load(cls, pid):
         d = json.load(open(STORE / f"{pid}.json"))
         p = cls(d["pid"], d["name"], d["start_balance"], d["strategy"], d["instruments"], d.get("mode", "paper"))
-        p.created = d["created"]; p.exec.balances = d["balances"]; p.state = d["state"]
+        p.created = d["created"]; p.paused = d.get("paused", False); p.result = d.get("result")
         return p
 
     def equity(self):
-        return self.exec.equity_usdt()
+        return self.result["equity"] if self.result else self.start_balance
 
     def status(self):
+        r = self.result or {}
         eq = self.equity()
         return {"pid": self.pid, "name": self.name, "mode": self.mode, "strategy": self.strategy,
                 "instruments": self.instruments, "start_balance": self.start_balance,
-                "equity": round(eq, 2), "pnl_pct": round((eq / self.start_balance - 1) * 100, 2),
-                "open_positions": {k: v for k, v in self.state.get("positions", {}).items() if v},
-                "n_orders": len(self.orders), "created": self.created, "simulation": self.exec.SIMULATION}
+                "equity": round(eq, 2), "pnl_pct": round((eq / self.start_balance - 1) * 100, 2) if self.start_balance else 0,
+                "paused": self.paused, "engine": "nautilus-backtest", "is_nautilus": True,
+                "fills": r.get("fills", 0), "positions": r.get("positions", 0),
+                "n_instruments": r.get("n_instruments", len(self.instruments)),
+                "ran": self.result is not None, "created": self.created, "simulation": True,
+                "lifecycle": r.get("lifecycle", "Strategy → order lifecycle → SimulatedExchange → Nautilus Portfolio")}
 
 
 class PortfolioManager:
@@ -75,6 +94,22 @@ class PortfolioManager:
             if row["run_id"] == run_id:
                 return self.create(name, start_balance, row["strategy"], ["BTC_USDT"], mode="paper")
         raise KeyError(f"эксперимент {run_id} не найден")
+
+    def run(self, pid):
+        p = self.portfolios.get(pid)
+        if not p:
+            raise KeyError(pid)
+        r = p.run(); self._write_status(); return r
+
+    def pause(self, pid):
+        p = self.portfolios.get(pid)
+        if not p: raise KeyError(pid)
+        r = p.pause(); self._write_status(); return r
+
+    def resume(self, pid):
+        p = self.portfolios.get(pid)
+        if not p: raise KeyError(pid)
+        r = p.resume(); self._write_status(); return r
 
     def delete(self, pid):
         if pid in self.portfolios:

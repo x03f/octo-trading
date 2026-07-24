@@ -44,6 +44,10 @@ tr.clk{cursor:pointer}tr.clk:hover{background:var(--panel2)}
 .note{font-size:12px;color:var(--ink2);line-height:1.5;margin:6px 0 0}
 .bar{height:6px;background:var(--panel2);border-radius:3px;overflow:hidden;margin-top:6px}
 .bar>i{display:block;height:100%;background:var(--good)}
+button.act{background:var(--chip);border:1px solid var(--line);color:var(--ink);padding:5px 11px;border-radius:6px;cursor:pointer;font-size:12px;margin:2px}
+button.act:hover{border-color:var(--accent)}
+button.danger{border-color:var(--bad);color:var(--bad)}
+input,select{background:var(--panel2);border:1px solid var(--line);color:var(--ink);padding:5px 8px;border-radius:6px;font-size:12px;margin:2px}
 .stage{display:flex;gap:0;margin:8px 0}
 .stage>div{flex:1;text-align:center;padding:6px 4px;font-size:11px;border:1px solid var(--line);color:var(--ink2)}
 .stage>div.act{background:rgba(76,141,255,.15);color:var(--ink);border-color:var(--accent)}
@@ -74,6 +78,8 @@ const cls=x=>x==null?"mut":x>=0?"pos":"neg";
 const sh=x=>x==null?"—":(x>=0?"+":"")+(+x).toFixed(2);
 const money=x=>x==null?"—":"$"+(+x).toLocaleString(undefined,{maximumFractionDigits:0});
 async function get(p){try{const r=await fetch(p,{cache:"no-store"});return await r.json()}catch(e){return null}}
+async function post(p,body){try{const r=await fetch(p,{method:"POST",headers:{"Content-Type":"application/json"},body:body?JSON.stringify(body):null});return await r.json()}catch(e){return{error:String(e)}}}
+function toast(m){let t=document.createElement("div");t.textContent=m;t.style.cssText="position:fixed;bottom:20px;right:20px;background:var(--panel2);border:1px solid var(--accent);color:var(--ink);padding:10px 16px;border-radius:8px;z-index:99;font-size:13px";document.body.appendChild(t);setTimeout(()=>t.remove(),4000)}
 function nav(){$("#nav").innerHTML=TABS.map(([k,t])=>`<button class="${k==CUR?'on':''}" onclick="go('${k}')">${t}</button>`).join("")}
 function go(k){CUR=k;nav();render()}
 function tile(v,l,c){return `<div class="card stat"><div class="v ${c||''}">${v}</div><div class="l">${l}</div></div>`}
@@ -227,7 +233,12 @@ async function renderResearch(v){
       <td><span class="tag ${r.verdict=='survived_3set'?'candidate':'buried'}">${r.verdict}</span></td></tr>`).join("")||'<tr><td colspan=10 class=muted>нет экспериментов — ntlab experiment &lt;S8|S4|..&gt;</td></tr>'}</tbody></table>
     <p class="note">Клик по строке — детальный артефакт (кривые, walk-forward фолды, Monte Carlo CI). Запуск: <code>ntlab experiment S8</code> / batch: <code>run_experiments_batch.py</code>.</p></div>
     <div id="exp-detail" style="margin-top:14px"></div>`;
+  const bar=document.createElement("div");bar.className="card";bar.style.marginBottom="14px";
+  bar.innerHTML=`<h2>Создать эксперимент</h2><select id="exp-strat"><option>S8</option><option>S4</option><option>S5</option><option>S1</option><option>S9</option><option>S3</option></select>
+    <button class="act" onclick="createExp()">Запустить (backtest+walk-forward+MC)</button>`;
+  v.querySelector(".card").before(bar);
 }
+async function createExp(){const st=document.getElementById("exp-strat").value;toast("Эксперимент "+st+" запущен в фоне…");await post("/api/experiment/create",{strategy:st});setTimeout(()=>{if(CUR=="research")render()},45000)}
 async function showExp(rid){
   const d=await get("/api/experiment/"+rid);const box=$("#exp-detail");if(!d||d.error){box.innerHTML='<div class="card muted">артефакт не найден</div>';return}
   const wf=d.walk_forward||{};
@@ -282,7 +293,7 @@ async function renderStrategies(v){
   v.innerHTML=`<div class="card"><h2>Каталог стратегий (статусы из честного трёхчастного теста)</h2>
     <table><thead><tr><th>ID</th><th>Имя</th><th>Класс</th><th class="num">TEST Sharpe</th><th>Статус</th><th>Рынок</th></tr></thead>
     <tbody>${(d.catalog||[]).map(s=>`<tr><td><b>${s.id}</b></td><td>${s.name}</td><td class="muted">${s.class}</td>
-      <td class="num ${cls(s.test_sharpe)}">${sh(s.test_sharpe)}</td><td><span class="tag ${s.status}">${s.status}</span></td><td class="muted">${s.market}</td></tr>`).join("")}</tbody></table></div>
+      <td class="num ${cls(s.test_sharpe)}">${sh(s.test_sharpe)}</td><td><span class="tag ${s.status}">${s.status}</span></td><td class="muted">${s.market}</td></tr>`).join("")}</tbody></table>${(d.catalog||[]).filter(s=>s.status_line).map(s=>`<p class="note"><b>${s.id}</b>: ${s.status_line}</p>`).join("")}</div>
   <div class="card" style="margin-top:14px"><h2>Покрытие категорий (все требуемые классы реализованы)</h2>
     ${Object.entries(cats).map(([k,vv])=>`<div class="kv"><span>${k}</span><b>${vv}</b></div>`).join("")||'<span class="muted">—</span>'}</div>
   <div class="card" style="margin-top:14px"><h2>Похоронённые семейства (честно, с причиной)</h2>
@@ -293,9 +304,14 @@ async function renderPortfolios(v){
   const d=await get("/api/portfolios")||{};const fwd=await get("/api/forward")||{};
   const ps=d.portfolios||[];const presets=d.live_presets||{};
   v.innerHTML=`<div class="card"><h2>Paper-портфели (research→paper, живые данные Gate.io, симуляция)</h2>
-    ${ps.length?`<table><thead><tr><th>Имя</th><th>Стратегия</th><th class="num">Старт</th><th class="num">Equity</th><th class="num">P&L</th><th>Режим</th></tr></thead>
-    <tbody>${ps.map(p=>`<tr><td><b>${p.name}</b></td><td class="muted">${p.strategy||"—"}</td><td class="num">${money(p.start_balance)}</td>
-      <td class="num">${money(p.equity)}</td><td class="num ${cls(p.pnl_pct)}">${pct(p.pnl_pct)}</td><td><span class="tag paper">${p.mode||"paper"}</span></td></tr>`).join("")}</tbody></table>`
+    <div style="margin-bottom:10px"><input id="pf-name" placeholder="имя" value="Портфель"><input id="pf-bal" type="number" value="1000" style="width:90px">
+      <select id="pf-strat"><option>S4</option><option>S8</option><option>S5</option><option>S1</option><option>S9</option><option>S3</option></select>
+      <input id="pf-instr" value="BTC_USDT,ETH_USDT" style="width:160px"><button class="act" onclick="pfCreate()">Создать (Nautilus)</button></div>
+    ${ps.length?`<table><thead><tr><th>Имя</th><th>Стратегия</th><th>Движок</th><th class="num">Старт</th><th class="num">Equity</th><th class="num">P&L</th><th class="num">Fills</th><th>Статус</th><th>Действия</th></tr></thead>
+    <tbody>${ps.map(p=>`<tr><td><b>${p.name}</b></td><td class="muted">${p.strategy||"—"}</td><td class="muted" style="font-size:11px">${p.is_nautilus?"✓ Nautilus":p.engine||"—"}</td><td class="num">${money(p.start_balance)}</td>
+      <td class="num">${money(p.equity)}</td><td class="num ${cls(p.pnl_pct)}">${pct(p.pnl_pct)}</td><td class="num">${p.fills??0}</td>
+      <td>${p.paused?'<span class="tag buried">пауза</span>':'<span class="tag candidate">актив</span>'}</td>
+      <td><button class="act" onclick="pfAct('${p.pid}','run')">Run</button><button class="act" onclick="pfAct('${p.pid}','${p.paused?"resume":"pause"}')">${p.paused?"Resume":"Pause"}</button><button class="act danger" onclick="pfAct('${p.pid}','delete')">Del</button></td></tr>`).join("")}</tbody></table>`
     :`<p class="muted">Явных portfolio-инстансов пока нет (0). Форвард-контур работает через Nautilus runtime + custom harness ниже. Создать: <code>PortfolioManager().create(...)</code> или <code>from_research(run_id)</code>.</p>`}
     <p class="note">${d.note||""}</p></div>
   <div class="card" style="margin-top:14px"><h2>Форвард-контуры (Nautilus-native)</h2>
@@ -307,6 +323,8 @@ async function renderPortfolios(v){
     <p class="note">Реальные ордера невозможны без ключей Gate.io + многофакторного live-guard (см. Live Trading).</p></div>`;
 }
 
+async function pfCreate(){const b={name:$("#pf-name").value,start_balance:+$("#pf-bal").value,strategy:$("#pf-strat").value,instruments:$("#pf-instr").value.split(",").map(x=>x.trim())};toast("Портфель создаётся…");await post("/api/portfolio/create",b);render()}
+async function pfAct(pid,action){toast(action=="run"?"Прогон через Nautilus (~10с)…":action);if(action=="run"){await post("/api/portfolio/"+pid+"/run")}else{await post("/api/portfolio/"+pid+"/"+action)}render()}
 async function renderLive(v){
   const nr=LIVE.runtime||await get("/api/nautilus-runtime")||{};const ns=nr.status||nr||{};
   const saf=await get("/api/safety")||{};const ping=await get("/api/gateio/ping")||{};const ctr=await get("/api/contours")||{};
@@ -325,7 +343,8 @@ async function renderLive(v){
     <div style="font-size:15px;margin-bottom:8px"><span class="dot ${saf.live_allowed?'off':'on'}"></span>
       Live: <b class="${saf.live_allowed?'neg':'pos'}">${saf.live_allowed?'РАЗРЕШЁН':'ЗАБЛОКИРОВАН'}</b></div>
     ${Object.entries(saf.factors||{}).map(([k,ok])=>`<div class="kv"><span>${k}</span><b class="${ok?'pos':'mut'}">${ok?"✓":"✗ нет"}</b></div>`).join("")}
-    <p class="note">${saf.reason||""}. Emergency stop: ${saf.emergency_stop||"сброс любого фактора → боевой путь недоступен"}.</p></div>
+    <p class="note">${saf.reason||""}. Emergency stop: ${saf.emergency_stop||"сброс любого фактора → боевой путь недоступен"}.</p>
+    <button class="act danger" onclick="emergencyStop()">🛑 Emergency stop (тест sandbox)</button></div>
   <div class="grid g2" style="margin-top:14px">
     <div class="card"><h2>Gate.io public data</h2>
       <div><span class="dot ${ping.public_data?.ok?'on':'off'}"></span>ping: <b>${ping.public_data?.ok?"ok":"нет"}</b></div>
@@ -335,6 +354,7 @@ async function renderLive(v){
   </div>`;
 }
 
+async function emergencyStop(){const r=await post("/api/emergency-stop");toast("Emergency stop: "+(r.emergency_stop||"?")+" · live="+r.live_allowed_after)}
 async function renderAdaptive(v){
   const d=await get("/api/adaptive")||{};const lc=await get("/api/adaptive-lifecycle")||{};
   const life=lc.lifecycle||{};const champ=life.champion;const chal=life.challengers||[];
@@ -348,7 +368,8 @@ async function renderAdaptive(v){
       ${tile(st.platform_decision||"—","Решение платформы")}
       ${tile(st.consultations_total??0,"Консультаций")}
     </div>
-    <p class="note">${d.note||""}</p></div>
+    <p class="note">${d.note||""}</p>
+    <button class="act" onclick="adaptiveRun()">Запустить цикл (deterministic provider)</button></div>
   <div class="card" style="margin-top:14px"><h2>Champion / Challenger — стадии продвижения</h2>
     <div class="kv"><span>Текущий champion</span><b>${champ?champ.version+" · "+JSON.stringify(champ.params):"—"}</b></div>
     ${chal.length?chal.map(c=>`<div style="margin-top:10px"><div class="muted" style="font-size:12px">${c.version} · источник ${c.source}</div>
@@ -360,6 +381,7 @@ async function renderAdaptive(v){
     <p class="note">Оценка пользы AI — сравнением: статик / классическая алго-адаптация / LLM / mock. Результат не выдаётся за доказанное улучшение до подтверждения. Учёт стоимости API включён (estimate_cost). Провайдеры: Claude / OpenAI / mock / deterministic.</p></div>`;
 }
 
+async function adaptiveRun(){const r=await post("/api/adaptive/run");toast("Adaptive("+(r.provider||"?")+"): режим "+(r.regime||"?")+", решение "+(r.decision||"?"))}
 async function renderLake(v){
   const d=await get("/api/lake")||{};
   const byTf=d.by_tf||{};const tfs=Object.keys(byTf);

@@ -179,8 +179,9 @@ def main():
                   "cross-sectional momentum": "S9 Rotation",
                   "portfolio allocation": "S6 Orchestra (risk-parity meta)"},
               "honest_conclusion": "Трёхчастная дисциплина (VALID>0 И TEST>0.3). S9 на 50/50 казалась хороша, "
-                                   "но VALID -1.17 -> режимная зависимость, НЕ край. Ни одна не прошла. "
-                                   "Единственный кандидат S11 (event-класс, другая вселенная, прошёл трёхчастный).",
+                                   "но VALID -1.17 -> режимная зависимость, НЕ край. НИ ОДНА СТРАТЕГИЯ ЛИДЕРБОРДА "
+                                   "(top-tercile) не прошла. Отдельно S11 (event-класс, ДРУГАЯ вселенная шорта "
+                                   "листингов) прошёл трёхчастный BACKTEST (TEST +0.84), но форвардом НЕ подтверждён.",
               "elapsed_s": round(time.time() - t0, 1)}
     json.dump(report, open(OUT, "w"), ensure_ascii=False, indent=1)
     print(f"benchmark buy-hold {report['benchmark_buyhold']['total_return_pct']:+.1f}% -> {OUT} ({report['elapsed_s']}s)")

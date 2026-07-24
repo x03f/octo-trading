@@ -53,7 +53,7 @@ def s11_proof_status():
     """Честный текущий статус доказанности S11."""
     return {
         "summary": "runtime operational, execution validated, forward validation pending",
-        "BACKTEST_VALIDATED": True,     # прошла чистый трёхчастный тест (TEST Sharpe +0.72)
+        "BACKTEST_VALIDATED": True,     # прошла чистый трёхчастный тест на event-вселенной листингов (TEST Sharpe +0.84)
         "LOCAL_SANDBOX_OPERATIONAL": None,   # проставит nautilus runtime при запуске
         "FUTURES_TESTNET_OPERATIONAL": False,  # требует TestNet-ключей владельца
         "FORWARD_SIGNAL_OBSERVED": False,   # ещё не было реального сигнала после запуска
