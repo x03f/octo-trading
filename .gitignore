@@ -41,3 +41,5 @@ nautilus-lab/web/data/adaptive_lifecycle.json
 nautilus-lab/var/portfolios/
 nautilus-lab/web/data/portfolios.json
 nautilus-lab/var/catalog/
+nautilus-lab/var/forward_history.jsonl
+nautilus-lab/var/

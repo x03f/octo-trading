@@ -32,6 +32,13 @@ def _clean(o):
     return o
 
 
+def _count_lines(path):
+    try:
+        return sum(1 for _ in open(path))
+    except Exception:
+        return 0
+
+
 def _load(name, default=None):
     p = RESULTS / name
     try:
@@ -111,8 +118,20 @@ def backtests():
 
 
 def _forward_pnl():
-    """Форвард-P&L из снимков OctoBot-контура (пока источник — pnl_history.csv).
-    После миграции на Nautilus paper источник сменится, контракт останется."""
+    """Форвард-P&L. ИСТОЧНИК ПО УМОЛЧАНИЮ — Nautilus-native контур (nautilus_forward_status.json,
+    независим от OctoBot). Легаси csv OctoBot остаётся только резервом для истории."""
+    nat = RESULTS / "nautilus_forward_status.json"
+    if nat.exists():
+        try:
+            j = _clean(json.load(open(nat)))
+            return {"available": True, "instances": j.get("n_contours", 0),
+                    "total": j.get("total_equity", 0), "pnl_pct": j.get("pnl_pct", 0),
+                    "trades": sum(c.get("fills", 0) or 0 for c in j.get("contours", [])),
+                    "snapshots": _count_lines("/opt/octobot/nautilus-lab/var/forward_history.jsonl"),
+                    "as_of": j.get("updated"), "source": "nautilus-native (независим от OctoBot)",
+                    "contours": j.get("contours", []), "started_fresh": j.get("started_fresh", False)}
+        except Exception:
+            pass
     csv = Path("/opt/octobot/strategy-lab/dashboard/pnl_history.csv")
     if not csv.exists():
         return {"available": False}
