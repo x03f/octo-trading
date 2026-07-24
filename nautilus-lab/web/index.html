@@ -90,6 +90,40 @@ async function render(){
 
 function tile(v,l,c){return `<div class="card stat"><div class="v ${c||''}">${v}</div><div class="l">${l}</div></div>`}
 
+const PALETTE=["#4c8dff","#26a69a","#f0a020","#ef5350","#ab7df8","#42a5f5","#66bb6a"];
+// многосерийный линейный график (SVG, без внешних либ). series=[{name,data,color}], опции.
+function chartLines(series,opts={}){
+  const W=opts.w||820,H=opts.h||240,pl=44,pr=12,pt=14,pb=22;
+  const all=series.flatMap(s=>s.data).filter(x=>x!=null&&isFinite(x));
+  if(!all.length)return '<p class="muted">нет данных для графика</p>';
+  let lo=opts.min!=null?opts.min:Math.min(...all), hi=opts.max!=null?opts.max:Math.max(...all);
+  if(opts.log){lo=Math.log(Math.max(lo,1e-6));hi=Math.log(Math.max(hi,1e-6));}
+  if(hi<=lo)hi=lo+1;
+  const n=Math.max(...series.map(s=>s.data.length));
+  const X=i=>pl+(W-pl-pr)*(n<2?0:i/(n-1));
+  const tv=v=>opts.log?Math.log(Math.max(v,1e-6)):v;
+  const Y=v=>pt+(H-pt-pb)*(1-(tv(v)-lo)/(hi-lo));
+  const path=s=>s.data.map((v,i)=>(v==null||!isFinite(v))?null:`${X(i)},${Y(v)}`).filter(Boolean).join(" ");
+  // сетка + подписи Y (4 линии)
+  let grid="",labs="";
+  for(let k=0;k<=4;k++){const yy=pt+(H-pt-pb)*k/4;const val=opts.log?Math.exp(hi-(hi-lo)*k/4):hi-(hi-lo)*k/4;
+    grid+=`<line x1="${pl}" y1="${yy}" x2="${W-pr}" y2="${yy}" stroke="#232838" stroke-width="1"/>`;
+    labs+=`<text x="${pl-6}" y="${yy+3}" text-anchor="end" font-size="10" fill="#8b93a7">${opts.fmt?opts.fmt(val):val.toFixed(2)}</text>`;}
+  // нулевая линия (для просадки/доходности)
+  let zero="";
+  if(!opts.log&&lo<0&&hi>0){const y0=Y(0);zero=`<line x1="${pl}" y1="${y0}" x2="${W-pr}" y2="${y0}" stroke="#4a5570" stroke-dasharray="3 3"/>`;}
+  const polys=series.map(s=>`<polyline fill="none" stroke="${s.color}" stroke-width="1.7" points="${path(s)}"/>`+
+    (s.fill?`<polygon fill="${s.color}22" points="${X(0)},${Y(opts.log?Math.exp(lo):lo)} ${path(s)} ${X(s.data.length-1)},${Y(opts.log?Math.exp(lo):lo)}"/>`:"")).join("");
+  // подписи X (первая/средняя/последняя)
+  let xl="";const xs=opts.x||[];
+  if(xs.length){[0,Math.floor(xs.length/2),xs.length-1].forEach(i=>{
+    xl+=`<text x="${X(i*(n-1)/(xs.length-1))}" y="${H-6}" text-anchor="middle" font-size="10" fill="#8b93a7">${xs[i]}</text>`;});}
+  const leg=series.filter(s=>s.name).map(s=>`<span class="pill" style="color:${s.color}">■ ${s.name}</span>`).join("");
+  return `<div style="overflow-x:auto">${leg?`<div style="margin-bottom:6px">${leg}</div>`:""}
+    <svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:${W}px">${grid}${zero}${polys}${labs}${xl}</svg></div>`;
+}
+
+
 async function renderOverview(v){
   const d=DATA.overview||await get("/api/overview")||{};
   const f=d.forward||{},s=d.strategies||{},data=d.data||{};
@@ -165,7 +199,17 @@ async function renderLeaderboard(v){
       <td class="num neg">${pct(r.max_dd_pct)}</td><td class="num">${r.n_trades??"—"}</td><td class="num">${r.win_rate!=null?(r.win_rate*100).toFixed(0)+"%":"—"}</td>
       <td class="num">${r.profit_factor??"—"}</td><td class="num ${cls(r.valid_sharpe)}">${sh(r.valid_sharpe)}</td><td class="num ${cls(r.oos_sharpe)}">${sh(r.oos_sharpe)}</td>
       <td><span class="tag ${r.verdict=='survived_3set'?'candidate':'buried'}">${r.verdict}</span></td></tr>`).join("")}</tbody></table>
-    <p class="note">${d.honest_conclusion||""}</p></div>`;
+    <p class="note">${d.honest_conclusion||""}</p></div>
+  <div class="card" style="margin-top:14px"><h2>Кривые эквити (норм. 1.0, лог-масштаб) vs buy-hold</h2>
+    ${chartLines([
+      ...rows.map((r,i)=>({name:r.strategy,data:r.equity_curve||[],color:PALETTE[i%PALETTE.length]})),
+      {name:"buy-hold",data:d.benchmark_curve||[],color:"#8b93a7"}
+    ],{log:true,x:d.x_dates,fmt:v=>v.toFixed(2)+"x"})}
+    <p class="note">Логарифмическая ось — честное сравнение мультипликаторов. Ни одна кривая не прошла трёхчастный тест (см. VALID/TEST выше).</p></div>
+  <div class="card" style="margin-top:14px"><h2>Просадки, %</h2>
+    ${chartLines(rows.map((r,i)=>({name:r.strategy,data:r.dd_curve||[],color:PALETTE[i%PALETTE.length]})),
+      {x:d.x_dates,max:0,fmt:v=>v.toFixed(0)+"%"})}
+    <p class="note">Глубина и длительность просадок — почему высокий Ret не равен пригодности (S9: DD ${pct((rows.find(r=>r.strategy.includes("Rotation"))||{}).max_dd_pct)}).</p></div>`;
 }
 async function renderResearch(v){
   const d=await get("/api/experiments")||{};

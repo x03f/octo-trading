@@ -54,6 +54,23 @@ def split_metrics(panel, weights, cvec):
     return (_stats_from_returns(r[a:b], panel.ppy), _stats_from_returns(r[b:], panel.ppy), res["stats"], res)
 
 
+def _downsample(a, n=160):
+    """Прореживание массива до <=n точек (для лёгких графиков на дашборде)."""
+    import numpy as _np
+    a = _np.asarray(a, float)
+    if len(a) <= n:
+        return [round(float(x), 5) for x in a]
+    idx = _np.linspace(0, len(a) - 1, n).astype(int)
+    return [round(float(a[i]), 5) for i in idx]
+
+
+def _dd_curve(equity):
+    import numpy as _np
+    e = _np.asarray(equity, float)
+    peak = _np.maximum.accumulate(e)
+    return (e / peak - 1.0)
+
+
 def _r(x):
     return round(float(x), 2) if x is not None and np.isfinite(x) else None
 
@@ -95,12 +112,18 @@ def main():
                "avg_position": ts["avg_position"], "valid_sharpe": _r(tr.get("sharpe")),
                "oos_sharpe": _r(te.get("sharpe")), "oos_return_pct": round(te.get("total_return", 0) * 100, 1),
                "verdict": verdict}
+        row["equity_curve"] = _downsample(res["equity"])            # нормированная кривая (старт=1.0)
+        row["dd_curve"] = _downsample(_dd_curve(res["equity"]) * 100)  # просадка, %
         rows.append(row)
         print(f"  {label:14} ret {row['total_return_pct']:+6.1f}% Sh {row['sharpe'] or 0:+.2f} "
               f"OOS {row['oos_sharpe'] or 0:+.2f} DD {row['max_dd_pct']:.0f}% trades {row['n_trades']} "
               f"PF {row['profit_factor']} -> {verdict}", flush=True)
     rows.sort(key=lambda r: (r["oos_sharpe"] if r["oos_sharpe"] is not None else -99), reverse=True)
+    bh_equity = bh["equity"] if isinstance(bh, dict) and "equity" in bh else bh
+    x_dates = [time.strftime("%Y-%m-%d", time.gmtime(t / 1000)) for t in
+               np.asarray(panel.ts)[np.linspace(0, len(panel.ts) - 1, min(160, len(panel.ts))).astype(int)]]
     report = {"generated": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "tf": tf,
+              "x_dates": x_dates, "benchmark_curve": _downsample(bh_equity),
               "universe": "top_tercile", "n_coins": panel.N, "span": span,
               "costs": "per-coin (Step0; top tercile ~15bps)",
               "benchmark_buyhold": {"total_return_pct": round(bh_stats["total_return"] * 100, 1),
