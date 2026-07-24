@@ -6,15 +6,20 @@ import subprocess, sys, os
 
 ROOT = "/opt/octobot/strategy-lab/nautilus-lab"
 CATEGORIES = {
-    "gateio-adapter":   ["test_gateio.py", "test_gateio_orders.py", "test_reconcile.py", "test_websocket.py", "test_futures.py"],
+    "unit":             ["test_gateio.py", "test_gateio_orders.py", "test_catalog.py", "test_adaptive_validation.py"],
+    "adapter":          ["test_gateio.py", "test_gateio_orders.py", "test_futures.py"],
+    "websocket-reconnect": ["test_websocket.py"],
+    "reconciliation":   ["test_reconcile.py", "test_reconcile_scenario.py"],
     "nautilus-runtime": ["test_nautilus.py"],
     "paper-execution":  ["test_paper_service.py", "test_portfolios.py"],
-    "adaptive-ai":      ["test_adaptive.py", "test_adaptive_lifecycle.py"],
-    "data-catalog":     ["test_catalog.py"],
+    "integration":      ["test_integration.py"],
+    "restart-recovery": ["test_restart_recovery.py"],
+    "paper-soak":       ["test_paper_soak.py"],
+    "adaptive-ai":      ["test_adaptive.py", "test_adaptive_lifecycle.py", "test_adaptive_validation.py"],
+    "e2e-lifecycle":    ["test_e2e_lifecycle.py"],
     "reproducibility":  ["test_reproducibility.py"],
     "corrupted-data":   ["test_corrupted_data.py"],
     "performance":      ["test_performance.py"],
-    "e2e-lifecycle":    ["test_e2e_lifecycle.py"],
     "dashboard-smoke":  ["test_dashboard_smoke.py"],
 }
 

@@ -20,3 +20,26 @@ def synth_panel(T=400, N=4, seed=7, tf="1d"):
     v = np.abs(rng.normal(1e6, 2e5, (T, N)))
     coins = [f"C{i}USDT" for i in range(N)]
     return Panel(coins, ts, o, h, l, closes, v, tf=tf)
+
+
+class FakeMarket:
+    """Подставной источник данных для PaperExecution (стакан/свечи/инструмент) — без сети."""
+    def __init__(self, mid=100.0, depth=None, precision=(2, 4), mins=(0.0, 0.0)):
+        self.mid = mid
+        self.depth = depth or [(0.5,), (1.0,), (5.0,)]   # уровни глубины (qty)
+        self.pp, self.ap = precision
+        self.min_q, self.min_b = mins
+
+    def set_mid(self, m): self.mid = m
+
+    def order_book(self, symbol, limit=20):
+        asks = [[self.mid * (1 + 0.001 * (i + 1)), q[0]] for i, q in enumerate(self.depth)]
+        bids = [[self.mid * (1 - 0.001 * (i + 1)), q[0]] for i, q in enumerate(self.depth)]
+        return {"asks": asks, "bids": bids}
+
+    def candles(self, symbol, tf="1m", limit=1):
+        return [{"close": self.mid}]
+
+    def instrument(self, symbol):
+        return {"price_precision": self.pp, "amount_precision": self.ap,
+                "min_quote_amount": self.min_q, "min_base_amount": self.min_b}
