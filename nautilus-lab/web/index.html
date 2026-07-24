@@ -53,6 +53,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 
 <script>
 const TABS=[["overview","Overview"],["strategies","Strategies"],["backtests","Backtests"],
+  ["leaderboard","Leaderboard"],["research","Research Lab"],
   ["portfolio","Portfolio"],["adaptive","Adaptive AI"],["datalake","Data Lake"],["system","System"]];
 let CUR="overview",DATA={};
 const $=s=>document.querySelector(s);
@@ -79,6 +80,8 @@ async function render(){
   if(CUR=="overview")return renderOverview(v);
   if(CUR=="strategies")return renderStrategies(v);
   if(CUR=="backtests")return renderBacktests(v);
+  if(CUR=="leaderboard")return renderLeaderboard(v);
+  if(CUR=="research")return renderResearch(v);
   if(CUR=="portfolio")return renderPortfolio(v);
   if(CUR=="adaptive")return renderAdaptive(v);
   if(CUR=="datalake")return renderLake(v);
@@ -145,6 +148,37 @@ async function renderBacktests(v){
   <div class="card" style="margin-top:14px"><h2>Nautilus (та же логика, много инструментов в 1 процессе)</h2>
     <table><thead><tr><th>Набор</th><th class="num">Инстр.</th><th class="num">P&L</th><th class="num">Сделок</th><th class="num">Время</th></tr></thead>
     <tbody>${(d.nautilus||[]).map(x=>`<tr><td>${x.set}</td><td class="num">${x.n_instruments}</td><td class="num ${cls(x.pnl_pct)}">${pct(x.pnl_pct)}</td><td class="num">${x.fills}</td><td class="num">${x.elapsed_s}s</td></tr>`).join("")}</tbody></table></div>`;
+}
+
+
+async function renderLeaderboard(v){
+  const d=await get("/api/leaderboard")||{};
+  const rows=d.strategies||[];
+  const bh=d.benchmark_buyhold||{};
+  v.innerHTML=`<div class="card"><h2>Leaderboard стратегий (трёхчастная дисциплина, пер-монетные косты)</h2>
+    <p class="note">Вселенная: ${d.universe||"—"} (${d.n_coins||0} монет) · период ${(d.span||[]).join("..")} · benchmark buy-hold ${pct(bh.total_return_pct)} (DD ${pct(bh.max_dd_pct)}).</p>
+    <table><thead><tr><th>Стратегия</th><th class="num">Капитал</th><th class="num">Ret</th><th class="num">Sharpe</th><th class="num">Sortino</th><th class="num">Calmar</th><th class="num">MaxDD</th><th class="num">Сделок</th><th class="num">WinRate</th><th class="num">PF</th><th class="num">VALID</th><th class="num">TEST</th><th>Вердикт</th></tr></thead>
+    <tbody>${rows.map(r=>`<tr>
+      <td><b>${r.strategy}</b></td><td class="num">$${(r.capital_end||0).toLocaleString()}</td>
+      <td class="num ${cls(r.total_return_pct)}">${pct(r.total_return_pct)}</td>
+      <td class="num ${cls(r.sharpe)}">${sh(r.sharpe)}</td><td class="num">${sh(r.sortino)}</td><td class="num">${sh(r.calmar)}</td>
+      <td class="num neg">${pct(r.max_dd_pct)}</td><td class="num">${r.n_trades??"—"}</td><td class="num">${r.win_rate!=null?(r.win_rate*100).toFixed(0)+"%":"—"}</td>
+      <td class="num">${r.profit_factor??"—"}</td><td class="num ${cls(r.valid_sharpe)}">${sh(r.valid_sharpe)}</td><td class="num ${cls(r.oos_sharpe)}">${sh(r.oos_sharpe)}</td>
+      <td><span class="tag ${r.verdict=='survived_3set'?'candidate':'buried'}">${r.verdict}</span></td></tr>`).join("")}</tbody></table>
+    <p class="note">${d.honest_conclusion||""}</p></div>`;
+}
+async function renderResearch(v){
+  const d=await get("/api/experiments")||{};
+  const rows=d.leaderboard||[];
+  v.innerHTML=`<div class="card"><h2>Research Lab — реестр экспериментов (DuckDB, воспроизводимо)</h2>
+    <p class="note">Экспериментов в реестре: <b>${d.count||0}</b>. Каждый: git_sha + версия данных + seed, метрики + трёхчастный + walk-forward + Monte Carlo + артефакт.</p>
+    <table><thead><tr><th>Run ID</th><th>Стратегия</th><th class="num">Ret</th><th class="num">Sharpe</th><th class="num">TEST</th><th class="num">MaxDD</th><th class="num">Сделок</th><th>Вердикт</th><th>Создан</th></tr></thead>
+    <tbody>${rows.map(r=>`<tr><td class="muted" style="font-size:11px">${(r.run_id||"").slice(0,26)}</td><td><b>${r.strategy}</b></td>
+      <td class="num ${cls(r.total_return*100)}">${pct((r.total_return||0)*100)}</td><td class="num ${cls(r.sharpe)}">${sh(r.sharpe)}</td>
+      <td class="num ${cls(r.test_sharpe)}">${sh(r.test_sharpe)}</td><td class="num neg">${pct((r.max_dd||0)*100)}</td>
+      <td class="num">${r.n_trades??"—"}</td><td><span class="tag ${r.verdict=='survived_3set'?'candidate':'buried'}">${r.verdict}</span></td>
+      <td class="muted" style="font-size:11px">${(r.created||"").slice(0,10)}</td></tr>`).join("")||'<tr><td colspan=9 class=muted>нет экспериментов</td></tr>'}</tbody></table>
+    <p class="note">Запуск: ntlab experiment &lt;S8|S4|...&gt; · Monte Carlo bootstrap даёт доверительный интервал Sharpe (край не доказан, если CI пересекает 0).</p></div>`;
 }
 
 async function renderPortfolio(v){
